@@ -1,0 +1,3707 @@
+; chm2txt
+; Version 1.2
+; November 11, 2015
+; Copyright 2009 - 2015 by Jamal Mazrui
+; GNU Lesser General Public License (LGPL)
+
+If param0 == 0 Then Exit
+exclusive(@on)
+gosub init
+s_sourceChm = param1
+s_sourceChms = FileItemPath(s_sourceChm)
+i_chmCount = ItemCount(s_SourceChms, @Tab)
+If i_ChmCount == 0 Then
+Pause("Syntax", StrCat("chm2txt SourceFile TargetFile", @Crlf, "or", @Crlf, "chm2txt SourceSpec"))
+Exit
+End If
+
+if i_chmCount == 1 && param0 == 2 Then
+s_targetChm = param2
+SayString(StrCat("Converting ", FileBaseName(s_SourceChm)))
+chm2txt(s_sourceChm, s_targetChm)
+PlainText(s_targetChm)
+Else
+For i_chm = 1 to i_chmCount
+s_SourceChm = ItemExtract(i_chm, s_sourceChms, @Tab)
+s_targetChm = StrCat(FilePath(s_sourceChm), FileRoot(s_SourceChm), ".txt")
+SayString(StrCat("Converting ", FileBaseName(s_SourceChm)))
+chm2txt(s_sourceChm, s_targetChm)
+PlainText(s_targetChm)
+Next
+EndIf
+SayString("Done!")
+SayString(@CrLf)
+Exit
+
+i_debug =@off
+;errormode(i_debug)
+params =""
+for i =1 to param0
+params =strcat(params, ' ', param%i%)
+endfor
+params =strtrim(params)
+if params =="" ||strleft(params, 1) =='/'
+gosub main
+else
+gosub %param1%
+endif
+goto exit
+
+:init
+#DefineFunction HtmlFile2Txt(sHtm, sTxt)
+sText = ""
+
+IntControl(73, 0, 0, 0, 0)
+ErrorMode(@off)
+oDoc = ObjectCreate("HTMLFile")
+oDoc.Write(FileGet(sHtm))
+sText = oDoc.Body.InnerText
+oDoc.Close()
+ObjectClose(oDoc)
+:WBERRORHANDLER
+ErrorMode(@cancel)
+If StrLen(StrTrim(sText)) > 0 Then FilePut(sTxt, sText)
+#EndFunction
+
+#DeFineFunction MyHtm2Txt(s_source, s_target)
+o = ObjectAccess("HTMLfile", 1)
+;s_source ="c:\temp\temp.htm"
+;s_target ="c:\temp\temp.txt"
+o.Open()
+;write dummy line
+o.WriteLn(".")
+s =FileGet(s_source, "")
+o.Body.InnerHtml =s
+o.Close()
+s =o.Body.InnerText
+fileput(s_target, s)
+;pause(o, s)
+ObjectClose(o)
+#EndFunction
+
+#DefineFunction ListCount(s, s_list)
+i_return =0
+While @True
+i =ItemLocate(s, s_list, @tab)
+If i
+i_return =i_return +1
+s_list =ItemRemove(i, s_list)
+Else
+Break
+EndIf
+EndWhile
+;Pause(s, i_return)
+Return i_return
+#EndFunction
+
+#DefineFunction hhcGlossary(s_SourceFile)
+s_DirTemp =StrChopRight(FilePath(s_SourceFile), 1)
+s_gloFile =StrCat(s_dirtemp, '\', FileRoot(s_sourceFile), ".glo")
+If !FileExist(s_gloFile)
+s_gloFile =FileItemPath(StrCat(s_DirTemp, '\', "*.glo"))
+If ItemCount(s_gloFile, @tab) Then s_gloFile =ItemExtract(1, s_gloFile, @tab)
+EndIf
+If FileExist(s_gloFile)
+s_body =FileGet(s_gloFile)
+s_body =StrCat(@crlf, s_body)
+s_body =StrReplace(s_body, StrCat(@crlf, "NAME="), StrCat(@crlf, @crlf))
+;s_body =StrChopLeft(s_body, 4)
+s_body =StrCat("Glossary", s_body)
+s_tmpFile =StrCat(StrChopRight(s_gloFile, 3), "tmp")
+FilePut(s_tmpFile, s_body)
+Else
+s_tmpFile =""
+EndIf
+Return s_tmpFile
+#EndFunction
+
+#DefineFunction ListReverse(s_list)
+s_return =""
+i_count =ItemCount(s_list, @tab)
+For i =i_count to 1 by -1
+s =ItemExtract(i, s_list, @tab)
+s_return =ItemInsert(s, -1, s_return, @tab)
+EndFor
+Return s_return
+#EndFunction
+
+#DefineFunction ABCChm2Txt(s_SourceFile, s_TargetFile)
+s_program ="C:\Program Files\ABC Amber CHM Converter\abcchm.exe"
+s_param =`"%s_SourceFile%" "%s_TargetFile%" 5`
+RunHideWait(s_program, s_param)
+Return FileExist(s_TargetFile)
+#EndFunction
+
+#DefineFunction pdf2rtf(s_batcondir, s_sourcefile, s_targetfile)
+s ="c:\program files\soliddocuments\solidConverterPDF\scPDF\solidconverterpDF.exe"
+if fileexist(s)
+RunProgram(@False, s, `/i "%s_sourcefile%" /o "%s_targetFile%" /f rtf /w x /y`)
+Else
+s ="%s_batcondir%\pdftv.exe"
+if fileexist(s)
+RunProgram(@False, s, `-c "%s_sourcefile%" "%s_targetfile%"`)
+Else
+;RunProgram(@False, "%s_batcondir%\pdf2ascii.exe", `"%s_sourcefile%" "%s_targetfile%"`)
+RunProgram(@False, "%s_batcondir%\pdftotext.exe", `"%s_sourcefile%"`)
+endif
+EndIf
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction pdf2doc(s_batcondir, s_sourcefile, s_targetfile)
+s ="c:\program files\soliddocuments\solidConverterPDF\scPDF\solidconverterpDF.exe"
+if fileexist(s)
+RunProgram(@False, s, `/i "%s_sourcefile%" /o "%s_targetFile%" /f doc /w x /y`)
+Else
+s ="%s_batcondir%\pdftv.exe"
+if fileexist(s)
+RunProgram(@False, s, `-c "%s_sourcefile%" "%s_targetfile%"`)
+Else
+;RunProgram(@False, "%s_batcondir%\pdf2ascii.exe", `"%s_sourcefile%" "%s_targetfile%"`)
+RunProgram(@False, "%s_batcondir%\pdftotext.exe", `"%s_sourcefile%"`)
+endif
+EndIf
+return fileexist(s_targetfile)
+#EndFunction
+#DefineSubroutine SayString(s_text)
+VarGet("s_batconPath")
+s_exe = StrCat(s_batconPath, "SayLine.exe")
+RunProgram(@False, s_exe, s_text)
+return
+
+;i = dllCall(StrCat(s_BatconPath, "jfwapi.dll"), Long: "JFWSayString", LpStr: s_text, Long: @False)
+o = ObjectCreate("FreedomSci.JawsApi")
+i = o.SayString(s_text, @False)
+if i 
+ObjectClose(o)
+Return
+EndIf
+
+o = ObjectCreate("GWSpeak.Speak")
+o.SpeakString(s_text)
+ObjectClose(o)
+#EndSubroutine
+
+#DefineFunction np_htm2txt(s_sourceFile, s_TargetFile)
+s_np_tmp ="c:\batcon\batcon.tmp"
+FilePut(s_np_tmp, s_sourceFile)
+s_program ="c:\program files\notetab pro 5\NotePro.exe"
+s_param ="/l=Homer:htm2txt"
+Run(s_program, s_param)
+i =300
+While !FileExist(s_targetFile) && i >0
+TimeDelay(0.1)
+i = i-1
+EndWhile
+;If !i Then Pause(FileBaseName(s_sourceFile), "")
+If !i then FilePut(s_TargetFile, @crlf)
+#EndFunction
+
+#DefineFunction HHCCombine(s_sourceFile, s_targetFile)
+Varget("s_ff")
+s_body =FileGet(s_SourceFile)
+s_TagOpen =`<param name="Local" value="`
+s_TagClose =`.htm`
+s_list =TagItemize(s_body, s_TagOpen, s_TagClose)
+s_list =StrLower(StrCat(s_list, @tab))
+s_list =StrReplace(s_list, "&amp;", '&')
+s_list =StrReplace(s_list, '/', '\')
+;s_list =StrReplace(s_list, StrCat("", @tab), StrCat(".txt", @tab))
+s_list =StrChopRight(s_list, 1)
+s_path =FilePath(s_SourceFile)
+s_list =StrCat(s_path, StrReplace(s_list, @tab, StrCat(".txt", @tab, s_path)), ".txt")
+s_dir =StrChopRight(s_path, 1)
+s_list =StrLower(s_list)
+i_count =ItemCount(s_list, @tab)
+For i =i_count to 1 by -1
+s =ItemExtract(i, s_list, @tab)
+If !FileExist(s) Then s_list =ItemRemove(i, s_list, @tab)
+EndFor
+s_txtList =StrLower(FileItemSub(s_dir, "*.txt"))
+ 
+;FilePut("c:\temp\temp.txt", s_list)
+;FilePut("c:\temp\tmp.txt", s_txtList)
+If @true
+s_list =ListUnique(s_list, @false)
+s_txtList =ListUnique(s_TXTList, @false)
+s_PathList =s_list
+i_PathCount =ItemCount(s_PathList, @tab)
+For i =1 to i_PathCount
+s =ItemExtract(i, s_PathList, @tab)
+s_PathList =ItemReplace(FilePath(s), i, s_PathList, @tab)
+EndFor
+;s_ReverseList =ListReverse(s_PathList)
+s =StrLower(FileItemPath(StrCat(s_path, "*.txt")))
+If ItemCount(s, @tab) ==1 && !ItemLocate(s, s_list, @tab) 
+;s =StrTrim(s)
+s_list =ItemInsert(s, 0, s_list, @tab)
+s_PathList =ItemInsert(FilePath(s), 0, s_PathList, @tab)
+EndIf
+i_count =ItemCount(s_txtList, @tab)
+For i =1 to i_count
+s =ItemExtract(i, s_txtList, @tab)
+i_match =ItemLocate(s, s_list, @tab)
+If !i_match
+;i_match =ItemLocate(FilePath(s), s_ReverseList, @tab)
+i_match =ItemLocate(FilePath(s), s_PathList, @tab)
+If i_match
+;s_ReverseList =ItemInsert(FilePath(s), i_match, s_ReverseList, @tab)
+;i_match =i_PathCount -i_match +1
+i_PathCount =ItemCount(s_PathList, @tab)
+If i_match <i_PathCount
+i_last =i_match +1
+While FilePath(s) ==ItemExtract(i_last, s_PathList, @tab)
+i_last =i_last +1
+EndWhile
+i_match  =i_last -1
+EndIf
+s_list =ItemInsert(s, i_match, s_list, @tab)
+s_PathList =ItemInsert(FilePath(s), i_match, s_PathList, @tab)
+Else
+s_list =ItemInsert(s, -1, s_list, @tab)
+s_PathList =ItemInsert(FilePath(s), -1, s_PathList, @tab)
+EndIf
+EndIf
+EndFor
+s_tmpFile =StrLower(hhcGlossary(s_SourceFile))
+If FileExist(s_tmpFile) then s_List =ItemInsert(s_tmpFile, -1, s_List, @tab)
+Else
+s_list =StrCat(s_list, @tab, s_txtList) 
+s_list =ListUnique(s_list, @false)
+EndIf
+;FilePut("c:\temp\temp.tmp", s_list)
+;fileput("c:\temp\temp.txt", s_list)
+s_tempfile =filecreatetemp("")
+fileput(s_tempfile, s_ff)
+s_path =FilePath(s_sourceFile)
+s_path =""
+s_list =StrCat(s_path, StrReplace(s_list, @tab, StrCat(@tab, s_tempFile, @tab, s_path)))
+;s_list =strreplace(s_list, @tab, @crlf)
+ErrorMode(@off)
+FilePut("c:\temp\temp.txt", s_list)
+i_return =FileAppend(s_list, s_targetFile)
+ErrorMode(@cancel)
+If !i_Return Then Display(2, "Error appending files", "")
+If FileExist(s_TempFile) Then FileDelete(s_TempFile)
+Return i_return
+#EndFunction
+
+#DefineFunction Pdf2Ans(s_batcondir, s_sourcefile, s_targetfile)
+RunProgram(@False, "%s_batcondir%\pdf2ascii.exe", `"%s_sourcefile%" "%s_targetfile%"`)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction Sort4Any(o_func, s_sourcefile, s_file, s_targetdir)
+s_sourcedir =filedir(s_sourcefile)
+s_sourceroot =fileroot(s_sourcefile)
+s_targetext =fileextension(s_sourcefile)
+s_targetfile =s_sourcefile
+s_file =itemextract(i_file, s_filelist, @tab)
+s_fileext =fileextension(s_file)
+s_fileroot =fileroot(s_file)
+i_len =strlen(s_fileroot)
+s_filenum =""
+i_loop =@true
+while i_loop
+i_loop =@false
+i =i_len
+while i
+s_last =strsub(s_fileroot, i, 1)
+if !strindex("0123456789", s_last, 1, @fwdscan) then break
+i =i -1
+endwhile
+if i <i_len
+s =strsub(s_fileroot, i +1, -1)
+i_max =max(2, strlen(s))
+s_filenum =strcat(strfixleft(s, '0', i_max), s_filenum)
+s_fileroot =strsub(s_fileroot, 1, i)
+if strindex("~#-_,. ", s_last, 1, @fwdscan)
+s_filenum =strcat(s_last, s_filenum)
+i_len =i -1
+s_fileroot =strsub(s_fileroot, 1, i_len)
+i_loop =@true
+endif
+endif
+if !i_loop && s_filenum !=""
+s_targetfile =strcat(s_fileroot, s_filenum, '.', s_fileext)
+if s_file !=s_targetfile && !fileexist(s_targetfile) then filerename(s_file, s_targetfile)
+endif
+endwhile
+
+:return
+return s_targetfile
+#EndFunction
+
+#DefineFunction pdf2asc(s_programdir, s_programlaunch, s_conversioncode, s_sourcefile, s_targetfile)
+if s_programlaunch =="%%COMSPEC%%"
+s_program =strreplace(s_programlaunch, "%%COMSPEC%%", environment("COMSPEC"))
+s_params =strreplace(s_conversioncode, "%%ProgramDir%%", s_programdir)
+else
+s_program =strcat(s_programdir, '\', s_programlaunch)
+s_params =s_conversioncode
+endif
+s =strcat(s_programdir, '\', "temp.pdf")
+filecopy(s_sourcefile, s, @false)
+s =strcat(s_programdir, '\', "temp.asc")
+if fileexist(s) then filedelete(s)
+RunProgram(@False, s_program, s_params)
+if fileexist(s) then filecopy(s, s_targetfile, @false)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction pdf2htm(s_programdir, s_programlaunch, s_conversioncode, s_sourcefile, s_targetfile)
+s_program =strcat(s_programdir, '\', s_programlaunch)
+s_params =s_conversioncode
+s =strcat(s_programdir, '\', "temp.pdf")
+filecopy(s_sourcefile, s, @false)
+s =strcat(s_programdir, '\', "temp.htm")
+if fileexist(s) then filedelete(s)
+RunProgram(@False, s_program, s_params)
+if fileexist(s) then filecopy(s, s_targetfile, @false)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction StrTrimIt(s_text, s_elim)
+if s_elim =="" then s_elim =strcat(num2char(10), num2char(11), num2char(12), num2char(13))
+s_text =strtrim(s_text)
+while s_text !="" && strindex(s_elim, strleft(s_text, 1), 1, @fwdscan)
+s_text =strtrim(strchopleft(s_text, 1))
+endwhile
+while s_text !="" && strindex(s_elim, strright(s_text, 1), 1, @fwdscan)
+s_text =strtrim(strchopright(s_text, 1))
+endwhile
+return s_text
+#EndFunction
+
+#DefineFunction StrSpeak(s_text)
+s_tempfile =filecreatetemp("")
+fileput(s_tempfile, s_text)
+errormode(@off)
+o_voice =0
+o_voice = Objectaccess("Sapi.SpVoice", @false)
+errormode(@cancel)
+if !o_voice
+o_voice = Objectopen("Sapi.SpVoice")
+if o_voice then o_newvoice =@true
+endif
+o_voice.Speak( s_tempfile, 4 )
+if o_newvoice then objectclose(o_voice)
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+#EndFunction
+
+#DefineFunction RunProgram(i_CustomRun, s_program, s_params)
+If !i_CustomRun
+RunHideWait(s_program, s_params)
+Return ""
+EndIf
+;s_startdir =filedir(s_program)
+s_startdir =dirget()
+s_display =@hidden
+s_wait =@GETPROCID
+s_procid =RunShell(s_program, s_params, s_startdir, s_display, s_wait)
+stabilize(1)
+if !s_procid then goto return
+s =winitemprocid(s_procid, (1 | 2 | 4 |8), 1)
+if s =="" then goto return
+stabilize(1)
+s =winitemprocid(s_procid, (1 | 2 | 4 |8), 1)
+if s =="" then goto return
+s =itemextract(1, s, @tab)
+errormode(@off)
+if winexist(s) then winclose(s)
+errormode(@cancel)
+stabilize(1)
+s =winitemprocid(s_procid, (1 | 2 | 4 |8), 1)
+if s =="" then goto return
+IntControl(56, s_program, 1, @true, 0) 
+
+:return
+return s_procid
+#EndFunction
+
+#DefineFunction web2lst(o_func, o_exp, s_targetdir)
+varget("s_batconpath")
+;Check to see if ClassID installed
+myShellWindowsClsid="{9BA05972-F6A8-11CF-A442-00A0C90A8F39}" ;ShellWindows
+myShellWindowsKey="Batcon.Shell\CLSID"
+If RegExistValue(@REGCLASSES,myShellWindowsKey) == @FALSE
+RegSetValue(@REGCLASSES,myShellWindowsKey,myShellWindowsClsid)
+If RegExistValue(@REGCLASSES,myShellWindowsKey) == @FALSE
+ pause("Alert", "Administrative access to computer needed to install this feature")
+goto return
+EndIf
+EndIf
+
+o_shellwindows =ObjectAccess("Batcon.Shell", @true)
+i_windowcount =o_shellwindows.count
+if !i_windowcount
+ pause("Alert", "No web page is open in Internet Explorer")
+goto return
+endif
+i_windowmax =i_windowcount -1
+o_window =o_shellwindows.Item(i_windowmax)
+s_url=o_window.LocationURL
+objectclose(o_window)
+objectclose(o_shellwindows)
+s_htmdir =strcat(s_batconpath, "htm")
+if !direxist(s_htmdir) then dirmake(s_htmdir)
+s_htmfile =urldownload(s_url, s_htmdir)
+;boxline("Preparing list of links")
+s_lstdir =strcat(s_batconpath, "lst")
+if !direxist(s_lstdir) then dirmake(s_lstdir)
+s_lstfile =strcat(s_lstdir, "\web.lst")
+any2lst(o_func, o_exp, s_url, s_htmfile, s_lstfile)
+:return
+return
+#EndFunction
+
+#DefineFunction Name4txt(o_func, s_sourcefile, s_namefile, s_targetdir)
+s_sourcedir =filedir(s_sourcefile)
+s_sourceroot =fileroot(s_sourcefile)
+s_targetext =fileextension(s_sourcefile)
+s_targetfile =s_sourcefile
+varget("s_alphanum")
+varget("s_printable")
+varget("s_illegal")
+h_namefile =fileopen(s_namefile, "read")
+while @true
+s_line =fileread(h_namefile)
+if s_line =="*EOF*" then break
+If !isalphanum(o_func, s_line, s_alphanum) then continue
+break
+endwhile
+fileclose(h_namefile)
+
+s_targetroot =filenamelegal(o_func, s_line, s_printable, s_illegal)
+if strequiv(s_sourceroot, s_targetroot) then goto return
+s_targetfile =strcat(s_targetdir, '\', s_targetroot, '.', s_targetext)
+s ="001"
+if fileexist(s_targetfile) then s_targetfile =strcat(filepathroot(s_targetfile), s, '.', s_targetext)
+while fileexist(s_targetfile)
+s =strfixleft(s +1, '0', 3)
+s_targetfile =strcat(strchopright(filepathroot(s_targetfile), 3), s, '.', s_targetext)
+if s =="999" then break
+endwhile
+s_targetname =filename(s_targetfile)
+if strequiv(s_sourcedir, s_targetdir) 
+filerename(s_sourcefile, s_targetfile)
+else
+filecopy(s_sourcefile, s_targetfile, @false)
+endif
+
+:return
+return s_targetfile
+#EndFunction
+
+#DefineFunction FileNameLegal(o_func, s_text, s_printable, s_illegal)
+s_text =o_func.chrkeep(s_printable, s_text)
+s_text =o_func.chrswap(s_text, s_illegal, strfill('_', strlen(s_illegal)))
+while strcontains(s_text, "  ")
+s_text =strreplace(s_text, "  ", ' ')
+endwhile
+while strcontains(s_text, "__")
+s_text =strreplace(s_text, "__", '_')
+endwhile
+s_text =strtrimit(s_text, "_ ")
+;fileput("c:\temp\temp.txt", s_text)
+if strlen(s_text) >70 then s_text =strtrim(o_func.strwrap(s_text, 1, 70))
+return s_text
+#EndFunction
+
+
+#DefineFunction IsAlphaNum(o_func, s_text, s_alphanum)
+return o_func.chrany(s_alphanum, s_text)
+
+#EndFunction
+#DefineFunction web2data(o_func, o_exp, s_targetdir)
+varget("s_batconpath")
+;Check to see if ClassID installed
+myShellWindowsClsid="{9BA05972-F6A8-11CF-A442-00A0C90A8F39}" ;ShellWindows
+myShellWindowsKey="Batcon.Shell\CLSID"
+If RegExistValue(@REGCLASSES,myShellWindowsKey) == @FALSE
+RegSetValue(@REGCLASSES,myShellWindowsKey,myShellWindowsClsid)
+If RegExistValue(@REGCLASSES,myShellWindowsKey) == @FALSE
+ pause("Alert", "Administrative access to computer needed to install this feature")
+goto return
+EndIf
+EndIf
+
+o_shellwindows =ObjectAccess("Batcon.Shell", @true)
+i_windowcount =o_shellwindows.count
+if !i_windowcount
+ pause("Alert", "No web page is open in Internet Explorer")
+goto return
+endif
+i_windowmax =i_windowcount -1
+o_window =o_shellwindows.Item(i_windowmax)
+s_url=o_window.LocationURL
+objectclose(o_window)
+objectclose(o_shellwindows)
+s_htmdir =strcat(s_batconpath, "htm")
+if !direxist(s_htmdir) then dirmake(s_htmdir)
+s_htmfile =urldownload(s_url, s_htmdir)
+;boxline("Preparing list of links")
+s_lstdir =strcat(s_batconpath, "lst")
+if !direxist(s_lstdir) then dirmake(s_lstdir)
+s_lstfile =strcat(s_lstdir, "\web.lst")
+any2lst(o_func, o_exp, s_url, s_htmfile, s_lstfile)
+lst2data(s_lstfile, s_targetdir)
+
+:return
+return
+#EndFunction
+
+#DefineFunction strreplacenc(o_func, s_body, s_pattern, s_replace)
+s_body =o_func.strtrani(s_body, s_pattern, s_replace)
+return s_body
+#EndFunction
+
+#DefineFunction StrTagText(s_body, s_tagopen, s_tagclose)
+s_text =""
+i_bodylength =strlen(s_body)
+i_openlength =strlen(s_tagopen)
+i_closelength =strlen(s_tagclose)
+i =strindexnc(s_body, s_tagopen, 0, @fwdscan)
+if !i then goto return
+i =i +i_openlength
+j =strindexnc(s_body, s_tagclose, i, @fwdscan)
+if !j then goto return
+s_text =strsub(s_body, i, (j -i))
+
+:return
+return s_text
+#EndFunction
+#DefineFunction TagItemize(s_body, s_tagopen, s_tagclose)
+i_bodylength =strlen(s_body)
+i_openlength =strlen(s_tagopen)
+i_closelength =strlen(s_tagclose)
+i_stop =i_bodylength -i_openlength -i_closelength
+i_start =1
+s_list =""
+while i_start <=i_stop
+i =strindexnc(s_body, s_tagopen, i_start, @fwdscan)
+;pause("i", i)
+if !i then break
+i =i +i_openlength
+j =strindexnc(s_body, s_tagclose, i, @fwdscan)
+;pause("j", j)
+if !j then break
+s_item =strsub(s_body, i, (j -i))
+s_list =strcat(s_list, @tab, s_item)
+i_start =j +i_closelength
+endwhile
+s_list =strsub(s_list, 2, -1)
+return s_list
+#EndFunction
+
+#DefineFunction any2lst(o_func, o_exp, s_baseurl, s_sourcefile, s_targetfile)
+varget("s_batconpath")
+varget("s_nodownload")
+varget("s_endurl")
+s_tempfile =filecreatetemp("")
+s_body =fileget(s_sourcefile, "")
+if @true
+s_profile =strcat(s_batconpath, "url.pro")
+TextPro(s_profile, s_sourcefile, s_tempfile, @true, @false)
+else
+s_links =tagitemize(s_body, 'hyperlink "', '"')
+s_links =strcat(s_links, @tab, tagitemize(s_body, 'href="', '"'))
+endif
+
+if strempty(s_baseurl) 
+s_baseurl =strtagtext(s_body, 'base href="', '"')
+else
+s =filepath(s_baseurl)
+s_baseurl =strcat(iparseurl(s_baseurl, 0, 0), "://", iparseurl(s_baseurl, 0, 1), filepath(iparseurl(s_baseurl, 0, 4)))
+endif
+if @false
+if s_baseurl =="" then s_baseurl =strtagtext(s_body, 'http://', '/')
+if s_baseurl !="" then s_baseurl =strcat("http://", s_baseurl, '/')
+endif
+s_links =fileget(s_tempfile, "")
+s_links =strreplace(s_links, @crlf, @tab)
+s_body =""
+i_count =itemcount(s_links, @tab)
+for i_item =1 to i_count
+s_item =strtrimit(itemextract(i_item, s_links, @tab), "")
+if strcontains(s_item, '@') then continue
+s =s_item
+if StrLeadEquiv(s_item, 'href="') then s_item =strtagtext(s_item, 'href="', '"')
+if StrLeadEquiv(s_item, 'hyperlink "') then s_item =strtagtext(s_item, 'hyperlink "', '"')
+if o_func.chrany(s_endurl, strright(s_item, 1)) then s_item =strchopright(s_item, 1)
+if !strindex(s_item, "://", 1, @fwdscan) then s_item =strcat(s_baseurl, s_item)
+i =strindex(s_item, '#', 0, @backscan)
+if i then s_item =strsub(s_item, 1, (i -1))
+i =strindex(s_item, '.', 0, @backscan)
+if i
+s_ext =strsub(s_item, i +1, -1)
+else
+s_ext =""
+endif
+if !listcontains(s_nodownload, s_ext) && !listcontains(s_body, s_item) then s_body =strcat(s_body, @tab, s_item)
+endfor
+s_body =strsub(s_body, 2, -1)
+if s_baseurl !="" then s_body =strcat(s_baseurl, @tab, s_body)
+s_body =strreplace(s_body, @tab, @crlf)
+fileput(s_targetfile, s_body)
+
+:return
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction UrlDownload(s_url, s_targetdir)
+varget("s_logfile")
+s_targetfile =""
+; 0-based requests are Scheme, HostName, UserName, Password, UrlPath, ExtraInfo
+errormode(@off)
+s_scheme =iparseurl(s_url, 0, 0)
+s_host =iparseurl(s_url, 0, 1)
+s_filepathname =iparseurl(s_url, 0, 4)
+s_extra =iparseurl(s_url, 0, 5)
+
+;if !iping(s_host, 15) then goto return
+if s_extra !="" && strleft(s_extra, 1) !='#' then s_filepathname =s_extra
+s_filepathname =urldecode(s_filepathname)
+s_filepathname =strreplace(s_filepathname, '/', '\')
+if strlen(s_filepathname) >1 && strright(s_filepathname, 1) =='\' 
+s_filepathname =strchopright(s_filepathname, 1)
+s_filename =filename(s_filepathname)
+s =fileextension(s_filename)
+if s =="" then s_filename =strcat(s_filename, ".htm")
+else
+s_filename =filename(s_filepathname)
+s_extension =fileextension(s_filename)
+if s_extension =="" then s_filename =strcat(s_host, ".htm")
+endif
+s_targetfile =strcat(s_targetdir, '\', s_filename)
+;appendline(s_logfile, strcat("url = ", s_url), @false)
+;boxline("Downloading %s_filename%")
+h_inet =ibegin(0, "", "")
+h_data =iurlopen(h_inet, s_url)
+i =ireaddata(h_data, s_targetfile)
+errormode(@cancel)
+iclose(h_data)
+iclose(h_inet)
+
+:return
+if !fileexist(s_targetfile) then s_targetfile =""
+return s_targetfile
+#EndFunction
+
+#DefineFunction any2zip(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+s_list =s_sourcefile
+s_list =strreplace(s_list, @crlf, @tab)
+s ='S'
+if s_subfolders
+s =strcat(s, 'R')
+else
+s =strcat(s, 'j')
+endif
+switch s_update
+case 15 ; update
+s =strcat(s, 'U')
+break
+case 16 ; replace
+break
+case 17 ; leave
+break
+endswitch
+zzipfiles(s, s_targetfile, s_list, "")
+return fileexist(s_targetfile)
+;return !lasterror()
+#EndFunction
+
+#DefineFunction data2txt(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+if fileexist(s_targetfile) then filedelete(s_targetfile)
+if s_sourcelist =="" then goto return
+varget("s_ff")
+varget("s_donedir")
+s_tempfile =filecreatetemp("")
+fileput(s_tempfile, s_ff)
+s_appendlist =strreplace(s_sourcelist, @tab, strcat(@tab, s_tempfile, @tab))
+i =fileappend(s_appendlist, s_targetfile)
+if !i then goto return
+
+:return
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction data2lst(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+s_body =strreplace(s_sourcelist, @tab, @crlf)
+fileput(s_targetfile, s_body)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction InitHTMStrip(s_batconfile)
+s_return =""
+s_codelist =iniItemizePvt("CODES", s_batconfile)
+i_codecount =itemcount(s_codelist, @tab)
+for i_code =1 to i_codecount
+s_codename =itemextract(i_code, s_codelist, @tab)
+s_codevalue =inireadpvt("CODES", s_codename, "", s_batconfile)
+s_return =strcat(s_return, @tab, s_codename, '|', s_codevalue)
+endfor
+return strsub(s_return, 2, -1)
+#EndFunction
+
+#DefineFunction StrLeft(s, i)
+return strsub(s, 1, i)
+#EndFunction
+
+#DefineFunction StrRight(s, i)
+i_length =strlen(s)
+i_start =i_length -i +1
+return strsub(s, i_start, -1)
+#EndFunction
+
+#DefineFunction StrChopLeft(s, i)
+i_start =i +1
+return strsub(s, i_start, -1)
+#EndFunction
+
+#DefineFunction StrChopRight(s, i)
+i_length =strlen(s)
+i_count =i_length -i
+return strsub(s, 1, i_count)
+#EndFunction
+
+#DefineFunction PercentComplete(s_now, i_item, i_itemcount, s_verbose, i_debug, s_logfile)
+s =TimeYmdHms()
+if abs(timediffsecs(s_now, s)) >=15
+;s_now =s
+;boxline(strcat(int(100 *(1.0 *i_item /i_itemcount)), " percent"))
+endif
+return s_now
+#EndFunction
+
+#DefineSubroutine varcheck(s_var)
+ pause(s_var, %s_var%)
+#EndSubroutine
+
+#DefineSubroutine VarInit()
+s_varlist ="s_varlist"
+varset("s_varlist", s_varlist)
+#EndSubroutine
+
+#DefineSubroutine VarDrop(s_var)
+xglobaldrop(s_var)
+i =listcontains(s_varlist, s_var)
+if i then s_varlist =itemremove(i, s_varlist)
+drop(i, %s_var%)
+#EndSubroutine
+
+#DefineSubroutine VarGetall()
+varget("s_varlist")
+i_count =itemcount(s_varlist, @tab)
+for i =2 to i_count
+s =itemextract(i, s_varlist, @tab)
+varget(s)
+endfor
+drop(i, i_count, s)
+#EndSubroutine
+
+#DefineSubroutine CharConst()
+s_linelength=batconget("LineLength")
+if s_linelength <=1 then s_linelength =@false
+if s_linelength then s_linelength =s_linelength +1 ; since soft return stripped
+s_nodownload =batconget("NoDownload")
+s_nodownload =strreplace(s_nodownload, '|', @tab)
+s_ff =num2char(12)
+s_hyphen =strcat('-', num2char(173))
+s_viewable =""
+for i =33 to 126
+s_viewable =strcat(s_viewable, num2char(i))
+endfor
+s_printable =strcat(num2char(32), s_viewable)
+s_ascii =strcat(num2char(9), num2char(10), num2char(12), num2char(13), s_printable)
+s_alphanum ="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" 
+s_punct ='`'
+s_punct =strcat(s_punct, `~!@#$%%^&*()-_=+[{]}\|;:'",<.>/?`)
+s_illegal ="@%%*+\|;:'<.>/?"
+s_illegal =strcat('"', s_illegal)
+s_endurl =`][@%%*()\|;:'",<>`
+s_toc =batconget("ContentsHeading")
+s_toc =strreplace(s_toc, "\r\n", @crlf)
+s_sb =batconget("SectionBreak")
+s_sb =strreplace(s_sb, "\f", num2char(12))
+s_sb =strreplace(s_sb, "\r\n", @crlf)
+s_eod =batconget("EndofDocument")
+s_eod =strreplace(s_eod, "\r\n", @crlf)
+varset("s_linelength", s_linelength)
+varset("s_nodownload", s_nodownload)
+varset("s_ff", s_ff)
+varset("s_hyphen", s_hyphen)
+varset("s_viewable", s_viewable)
+varset("s_printable", s_printable)
+varset("s_ascii", s_ascii)
+varset("s_alphanum", s_alphanum)
+varset("s_illegal", s_illegal)
+varset("s_endurl", s_endurl)
+varset("s_punct", s_punct)
+varset("s_toc", s_toc)
+varset("s_sb", s_sb)
+varset("s_eod", s_eod)
+drop(i)
+#EndSubroutine
+
+#DefineFunction ListUnique(s_list, i_sort)
+if i_sort
+s_list =itemsort(s_list, @tab)
+i_count =itemcount(s_list, @tab)
+i =i_count
+s1 =itemextract(i, s_list, @tab)
+while i >=2
+i =i-1
+s2 =itemextract(i, s_list, @tab)
+if s2 ==s1
+s_list =itemremove(i, s_list, @tab)
+else
+s1 =s2
+endif
+endwhile
+else
+i_count =itemcount(s_list, @tab)
+for i = i_count to 1 by -1
+s =itemextract(i, s_list, @tab)
+i_match =itemlocate(s, s_list, @tab)
+if (i_match >0) && (i_match <i) then s_list =itemremove(i, s_list, @tab)
+endfor
+endif
+return s_list
+#EndFunction
+
+#DefineFunction CotEmpty(o_app, o_cot, s_verbose)
+if o_app
+if o_cot
+i_cotcount =o_cot.count
+for i_file =1 to i_cotcount
+o_file =o_cot.item(i_file)
+if s_verbose || o_file.readonly then o_file.close(:: SaveChanges=@false)
+objectclose(o_file)
+endfor
+o_windows =o_app.windows
+i_windowcount =o_windows.count
+for i_window =1 to i_windowcount
+o_window =o_windows.item(i_window)
+s_caption =o_window.caption
+if s_verbose || strcontains(s_caption, "readonly") then o_window.close(:: SaveChanges=@False)
+objectclose(o_window)
+endfor
+endif
+endif
+#EndFunction
+
+#DefineSubroutine VarSet(s_var, s_val)
+%s_var% =s_val
+xglobalput(s_var, s_val)
+;pause("s_var", s_var)
+if !isdefined(s_varlist) then varget("s_varlist")
+if !listcontains(s_varlist, s_var) then varset("s_varlist", strcat(s_varlist, @tab, s_var))
+drop(s_var, s_val)
+#EndSubroutine
+
+#DefineSubroutine VarGet(s_var)
+s_val =xglobalget(s_var)
+%s_var% =s_val
+#EndSubroutine
+
+#DefineSubRoutine BatconGet(s_var)
+return iniReadPvt("DEFAULTS", s_var, "", "%s_batcondir%\batcon.ini")
+#EndSubroutine
+
+#DefineSubroutine BatconSet(s_var, s_val)
+return iniWritePvt("DEFAULTS", s_var, s_val, "%s_batcondir%\batcon.ini")
+#EndSubroutine
+
+#DefineFunction FileWrap(o_func, s_file, s_linelength)
+varget("s_verbose")
+varget("i_debug")
+varget("s_logfile")
+if i_debug then BoxLine("Wrapping lines")
+s =fileget(s_file, "")
+s =o_func.memowrap(s, s_linelength, 1)
+s =strreplace(s, strcat(num2char(141), @lf), @crlf)
+fileput(s_file, s)
+return fileexist(s_file)
+#EndFunction
+
+#DefineFunction txt2doc(o_doc_app, o_doc_cot, s_sourcefile, s_targetfile)
+i_samefile =strequiv(s_sourcefile, s_targetfile)
+o_doc =o_doc_cot.open(s_sourcefile :: AddToRecentFiles=@false, ReadOnly=!i_samefile, Revert=@true, ConfirmConversions=@false)
+if o_doc
+o_range =o_doc.range
+if o_range
+o_range.autoformat()
+o_doc.saveas(:: FileName=s_targetfile, AddToRecentFiles=@false)
+objectclose(o_range)
+endif
+o_doc.close()
+objectclose(o_doc)
+endif
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction strreplaceexp(o_exp, s_body, s_search, s_replace, i_ignorecase, i_global)
+varget("i_debug")
+s_body =o_exp.Replace(s_body,s_replace)
+return s_body
+#EndFunction
+
+#DefineFunction TextPro(s_profile, s_sourcefile, s_targetfile, i_clean, i_newsource)
+vargetall()
+o_exp =objectopen("VBScript.RegExp")
+;appendline(s_logfile, filename(s_profile), @false)
+s =strcat("Applying ", fileroot(s_profile), " process")
+;if i_debug then BoxLine(s)
+i_end =-1
+i_resave =0
+s_body =fileget(s_sourcefile, "")
+i =strlen(s_body)
+if i_clean then s_body =strclean(s_body, s_ascii, "", @true, 2)
+;if i_clean then s_body =o_func.chrkeep(s_ascii, s_body)
+a_profile =arrayfileget(s_profile, "", 0)
+i_linecount =arrinfo(a_profile, 1)
+s =a_profile[0]
+i_excerpt =strcontains(s, "excerpt")
+if i_excerpt
+o_exp.ignorecase =@false
+o_exp.pattern =strcat('^', s_toc, "(\n|.)*?", s_sb)
+s_body =o_exp.replace(s_body, "")
+endif
+i_ignorecase =strcontains(s, "ignorecase")
+i_global =strcontains(s, "global")
+o_exp.ignorecase =i_ignorecase
+o_exp.global =i_global
+i_linemax =i_linecount -1
+s_contents =""
+i_start =0
+s_indexlist =""
+;s_now =timeymdhms()
+for i_line =1 to i_linemax
+if (i_line mod 3) ==1 then s_comment =strtrim(a_profile[i_line])
+if (i_line mod 3) ==2 then s_search =a_profile[i_line]
+if (i_line mod 3) ==0
+if strlen(s_comment) && strleft(s_comment, 1) !=';' 
+s_comment =strreplace(s_comment, '|', @tab)
+dirchange(filedir(s_sourcefile))
+i = listcontains(fileitemize(s_comment), filename(s_sourcefile))
+if !i then continue
+endif
+s_search =strreplace(s_search, "%%s_hyphen%%", s_hyphen)
+s_search =strreplace(s_search, "%%s_toc%%", s_toc)
+s_search =strreplace(s_search, "%%s_sb%%", s_sb)
+s_search =strreplace(s_search, "%%s_eod%%", s_eod)
+o_exp.pattern =s_search
+i_test =0
+errormode(@off)
+i_test =o_exp.test(s_body)
+errormode(@cancel)
+if i_test
+if i_excerpt
+o_matches =o_exp.execute(s_body)
+i_matchcount =o_matches.count
+i_matchmax =i_matchcount -1
+i_end =i_start +i_matchmax
+for i_match =0 to i_matchmax
+o_match =o_matches.item(i_match)
+i =strfixleft(o_match.firstindex, '0', 10)
+s =o_match.value
+s_indexlist =strcat(s_indexlist, @tab, i, '|', s)
+objectclose(o_match)
+endfor ; i_match
+objectclose(o_matches)
+i_start =i_end +1
+else
+s_replace =a_profile[i_line]
+s_replace =strreplace(s_replace, "\f", s_ff)
+s_replace =strreplace(s_replace, "\r\n", @crlf)
+s_replace =strreplace(s_replace, "\r", @cr)
+s_replace =strreplace(s_replace, "\n", @lf)
+s_replace =strreplace(s_replace, "%%s_toc%%", s_toc)
+s_replace =strreplace(s_replace, "%%s_sb%%", s_sb)
+s_replace =strreplace(s_replace, "%%s_eod%%", s_eod)
+s_body =o_exp.Replace(s_body,s_replace)
+endif ; i_excerpt
+endif ; i_test
+if !isdefined(i_matchcount) then i_matchcount =0
+;appendline(s_logfile, strcat(s_search, " = ", i_test), @false)
+s_comment =""
+s_search =""
+s_replace =""
+endif ; i_line mod 3
+;s_now =PercentComplete(s_now, i_line, i_linemax, s_verbose, i_debug, s_logfile)
+endfor ; i_line
+i =isdefined(s_indexlist) + i_start
+if i_excerpt && i
+s_indexlist =itemsort(s_indexlist, @tab)
+;s_now =TimeYmdHms()
+i_prev =-1
+;for i_match =0 to i_end
+i_MatchCount =ItemCount(s_IndexList, @tab)
+For i_match =1 to i_MatchCount
+s_index =itemextract(i_match, s_indexlist, @tab)
+i =itemextract(1, s_index, '|')
+s =itemextract(2, s_index, '|')
+if !isnumber(i) then continue
+if strcontains(s, "...") then continue
+s_contents =strcat(s_contents, @crlf, s)
+if i !=i_prev && strsub(s, 1, 1) !=s_ff
+i_prev =i
+i =1 +i_resave +i
+while !strcontains(s_printable, strsub(s_body, i, 1))
+i = i +1
+endwhile
+s_body =strcat(strsub(s_body, 1, i -1), s_ff, strsub(s_body, i, -1))
+i_resave =i_resave +1
+endif
+;s_now =PercentComplete(s_now, i_match, i_end, s_verbose, i_debug, s_logfile)
+endfor
+s_contents =strchopleft(s_contents, 2) ; remove leading crlf
+if i_newsource && i_resave then fileput(s_sourcefile, s_body)
+s_contents =strreplace(s_contents, num2char(12), "")
+while strindex(s_contents, strcat(@crlf, @crlf), 1, @fwdscan)
+s_contents =strreplace(s_contents, strcat(@crlf, @crlf), @crlf)
+endwhile
+if i_newsource
+s_body =iif(s_contents =="", "", strcat(s_toc, s_contents, s_sb))
+;s_body =strreplace(s_body, strcat(@crlf, s_sb), s_sb)
+else
+s_body =s_contents
+endif
+endif
+fileput(s_targetfile, s_body)
+return fileexist(s_targetfile)
+ObjectClose(o_exp)
+#EndFunction
+
+#DefineFunction CustomPause(s_title, s_text, s_ok, s_cancel)
+buttonnames(s_ok, s_cancel)
+ pause(s_title, s_text)
+buttonnames("", "")
+#EndFunction
+
+#DefineSubroutine Match(s_item)
+return itemlocate(strlower(s_item), strlower(s_matchlist), @tab)
+#EndSubroutine
+
+#DefineFunction StrEmpty(s)
+Return (StrLen(StrTrim(s)) ==0)
+#EndFunction
+
+#DefineFunction doc2lst(o_doc_app, o_doc_cot, s_sourcefile, s_targetfile)
+if o_doc
+o_range =o_doc.range
+if o_range
+o_range.InsertFile(:: FileName=s_sourcefile, Range="", ConfirmConversions=@False, Link=@False, Attachment=@False)
+;o_range.autoformat()
+;o_doc.kind =1
+o_links =o_doc.hyperlinks
+if o_links
+i_linkcount =o_links.count
+s =""
+for i_link =1 to i_linkcount
+o_link =o_links.item(i_link)
+s_address =o_link.address
+if !strempty(s_address) then s =strcat(s, s_address, @crlf)
+endfor
+fileput(s_targetfile, s)
+objectclose(o_link)
+objectclose(o_links)
+endif
+o_range.wholestory()
+o_range.delete()
+objectclose(o_range)
+endif
+o_doc.close()
+objectclose(o_doc)
+endif
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction lst2txt(s_sourcefile, s_targetfile)
+s_tempfile =filecreatetemp("")
+fileput(s_tempfile, s_ff)
+s_list =fileget(s_sourcefile, "")
+s_list =strreplace(s_list, @crlf, strcat(@tab, s_tempfile, @tab))
+fileappend(s_list, s_targetfile)
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction lst2zip(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+s_list =fileget(s_sourcefile, "")
+s_list =strreplace(s_list, @crlf, @tab)
+s ='S'
+if s_subfolders
+s =strcat(s, 'R')
+else
+s =strcat(s, 'j')
+endif
+switch s_update
+case 15 ; update
+s =strcat(s, 'U')
+break
+case 16 ; replace
+break
+case 17 ; leave
+break
+endswitch
+zzipfiles(s, s_targetfile, s_list, "")
+return fileexist(s_targetfile)
+;return !lasterror()
+#EndFunction
+
+#DefineFunction zip2lst(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+s_dir =dirget()
+s_sourcedir =filedir(s_sourcefile)
+dirchange(s_sourcedir)
+s ="CdL"
+if !s_subfolders then s =strcat(s, 'J')
+switch s_update
+break
+case 15 ; update
+s =strcat(s, "uo")
+break
+case 16 ; replace
+s =strcat(s, 'o')
+break
+case 17 ; leave
+break
+case s_update
+break
+endswitch
+s ='l'
+s_list =zunzipfiles(s, s_sourcefile, '*', "", "")
+s_list =strreplace(s_list, @tab, @crlf)
+fileput(s_targetfile, s_list)
+dirchange(s_dir)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction data2zip(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+s ='S'
+if s_subfolders 
+s=strcat(s, " R")
+else
+s=strcat(s, " j")
+endif
+switch s_update
+case 15 ; update
+s =strcat(s, " U")
+break
+case 16 ; replace
+break
+case 17 ; leave
+break
+endswitch
+zzipfiles(s, s_targetfile, s_sourcelist, "")
+return fileexist(s_targetfile)
+;return !lasterror()
+#EndFunction
+
+#DefineFunction zip2data(s_sourcefile, s_targetdir, s_subfolders, s_move, s_update)
+s ="Cd"
+if !s_subfolders then s =strcat(s, 'J')
+switch s_update
+case 15 ; update
+s =strcat(s, "uo")
+break
+case 16 ; replace
+s =strcat(s, 'o')
+break
+case 17 ; leave
+break
+endswitch
+zunzipfiles(s, s_sourcefile, '*', "", s_targetdir)
+return !lasterror()
+#EndFunction
+
+#DefineFunction BatconSettings(s_file)
+s_list =iniItemizePvt("ALIASES", s_file)
+s_list =itemsort(s_list, @tab)
+i_count =ItemCount(s_list, @tab)
+a =arrdimension(i_count, i_count)
+i_max =i_count -1
+For i =1 to i_count
+s =ItemExtract(i, s_list, @tab)
+a[i -1, 0] =s
+s =iniReadPvt("ALIASES", s, "", s_file)
+a[i -1, 1] =s
+endfor
+return a
+#EndFunction
+
+#DefineFunction Conversion2Alias(a_alias, s_aliaslist, s_conversion)
+s_alias =""
+if @true
+i =listcontains(s_aliaslist, s_conversion)
+if i then s_alias =a_alias[i -1, 1]
+else
+i_count =ArrInfo(a_alias, 1)
+i_max =i_count -1
+for i =0 to i_max
+if strequiv(a_alias[i, 0], s_conversion) 
+s_alias =a_alias[i, 1]
+break
+endif
+endfor
+endif
+return s_alias
+#EndFunction
+
+#DefineSubroutine InitBoxLine()
+s_active =wingetactive()
+varset("s_boxtitle", "Batcon")
+boxopen(s_boxtitle, "")
+if s_verbose || i_debug 
+winactivate(s_boxtitle)
+winzoom(s_boxtitle)
+else
+if winexist(s_active) then winactivate(s_active)
+endif
+#EndSubroutine
+
+#DefineFunction ExitBoxLine()
+boxshut()
+#EndFunction
+
+#DefineFunction DisplayBox(s_title, s_text, s_verbose, i_debug)
+;appendline(s_logfile, s, i_debug)
+boxshut()
+;if (i_debug || s_verbose) then display(1, s_title, "")
+if wingetactive() ==s_title
+exclusive(@on)
+winactivate("")
+boxtitle(s_title)
+boxtext(s_text)
+winactivate(s_title)
+winzoom(s_title)
+if (i_debug || s_verbose)
+;winactivate(s_title)
+;winzoom(s_title)
+endif
+else
+exclusive(s_verbose)
+endif
+return
+#EndFunction
+
+#DefineFunction BoxLine(s)
+varget("s_verbose")
+varget("i_debug")
+varget("s_logfile")
+;appendline(s_logfile, s, i_debug)
+; stop the following boxshut and boxtitle because of JFWAPI.dll and takes focus away
+;boxshut()
+;if s_verbose || i_debug then display(1, s, "")
+;if s_verbose || i_debug then StrSpeak(s)
+if s_verbose || i_debug then SayString(s)
+;boxtitle(s)
+return
+varget("s_varlist")
+varget("s_verbose")
+varget("i_debug")
+varget("s_logfile")
+varget("s_boxtitle")
+;appendline(s_logfile, s, @false)
+if @false
+s_active =wingetactive()
+if s_active ==s_boxtitle
+exclusive(@on)
+else
+exclusive(s_verbose)
+endif
+if s_verbose || i_debug
+;display(1, s, "")
+endif
+boxshut()
+endif
+boxtitle(s)
+if !s_verbose && !i_debug && winexist(s_active) && (wingetactive() !=s_active) then winactivate(s_active)
+varset("s_boxtitle", s)
+return @true
+#EndFunction
+
+#DefineFunction lst2data(s_sourcefile, s_targetdir)
+s_sourcelist =fileget(s_sourcefile, "")
+s_sourcelist =strreplace(s_sourcelist, @crlf, @tab)
+i_sourcecount =itemcount(s_sourcelist, @tab)
+for i_source =1 to i_sourcecount
+s_source =itemextract(i_source, s_sourcelist, @tab)
+if !strcontains(s_source, "://") then continue
+urldownload(s_source, s_targetdir)
+endfor
+return
+vargetall()
+i_samefile =@false
+if @false
+o_doc =o_doc_cot.open(s_sourcefile :: AddToRecentFiles=@false, ReadOnly=!i_samefile, Revert=@true, ConfirmConversions=@false)
+else
+;o_doc =o_doc_cot.add(:: DocumentType=0)
+o_doc =o_doc_cot.add()
+;clipput(fileget(s_sourcefile, ""))
+;o_doc.activate()
+o_range =o_doc.range
+;o_range.paste()
+o_range.InsertFile(:: FileName=s_sourcefile, Range="", ConfirmConversions=@False, Link=@False, Attachment=@False)
+endif
+o_doc.kind =0
+o_range.autoformat()
+o_links =o_doc.hyperlinks
+i_linkcount =o_links.count
+for i_link =1 to i_linkcount
+o_link =o_links.item(i_link)
+eck("o_links.count")
+s_address =o_link.address
+if !strcontains(s_address, "://")
+if !isdefined(s_base)
+;s_body =o_range.text
+s_body =fileget(s_sourcefile, "")
+i =strindexnc(s_body, "http://", 1, @fwdscan)
+j =strindex(s_body, '/', i +7, @fwdscan)
+s_base =strsub(s_body, i, (j -i +1))
+endif
+s_address =strcat(s_base, s_address)
+endif
+;geturl(s_address, s_targetdir, "", s_verbose, i_debug, s_logfile)
+UrlDownload(s_address)
+objectclose(o_link)
+endfor
+objectclose(o_links)
+objectclose(o_range)
+o_doc.close( ::SaveChanges=@False)
+objectclose(o_doc)
+return i_linkcount
+#EndFunction
+
+#DefineFunction FileItemDir(s_dir, s_filespec)
+s_curdir =dirget()
+dirchange(s_dir)
+s =fileitempath(s_filespec)
+dirchange(s_curdir)
+return s
+#EndFunction
+
+#DefineFunction fileitemsub(s_subdir, s_filespec)
+s =""
+s_curdir =dirget()
+;dirchange(s_subdir)
+
+;s_filelist =strcat(s, @tab, fileitempath(s_filespec))
+;s_filelist =strsub(s_filelist, 2, -1)
+
+s_dirlist =diritemize(StrCat(s_subdir, '\', '*'))
+i_dircount =itemcount(s_dirlist, @tab)
+for i_dir =1 to i_dircount
+s_dir =itemextract(i_dir, s_dirlist, @tab)
+s_dir =StrCat(s_subdir, '\', s_dir)
+s =strcat(s, @tab, fileitemsub(s_dir, s_filespec))
+endfor
+;while strindex(s_filelist, strcat(@tab, @tab), 1, @fwdscan)
+;s_filelist =strreplace(s_filelist, strcat(@tab, @tab), @tab)
+;endwhile
+If @true
+;s_filelist =strcat(s, @tab, fileitempath(s_filespec))
+i_count =ItemCount(s_FileSpec, '|')
+For i =1 to i_count
+s_spec =ItemExtract(i, s_FileSpec, '|')
+s_spec =StrCat(s_SubDir, '\', s_spec)
+s_FileSpec =ItemReplace(s_spec, i, s_FileSpec, '|')
+EndFor
+s_filelist =strcat(fileitempath(s_filespec), @tab, s)
+;s_filelist =strsub(s_filelist, 2, -1)
+while strindex(s_filelist, strcat(@tab, @tab), 1, @fwdscan)
+s_filelist =strreplace(s_filelist, strcat(@tab, @tab), @tab)
+endwhile
+s_FileList =StrTrim(s_FileList)
+EndIf
+;dirchange("..")
+;dirchange(s_curdir)
+return s_filelist
+#EndFunction
+
+#DefineFunction Immitate(s_extension, s_immitate)
+s_key =RegCreatekey(@REGCLASSES, strcat('.', s_extension))
+RegSetValue(s_key, "", strcat(s_immitate, "file"))
+RegClosekey(s_key)
+#EndFunction
+
+#DefineFunction Associate(s_extension, s_programfile)
+a=s_extension
+b =s_programfile
+rkey=RegOpenKey(@REGCLASSES,"")
+ErrorMode(@OFF)
+RegDeleteKey(rkey,".%a%")
+ErrorMode(@CANCEL)
+RegSetValue(rkey, ".%a%", "%a%_auto_file")
+RegSetValue(rkey,"%a%_auto_file\shell\open\command",strcat('"',b,'" "%%1"'))
+AU=StrUpper(a)
+RegSetValue(rkey,"%a%_auto_file","%AU% File")
+RegClosekey(rkey)
+return 1
+#EndFunction
+
+#DefineFunction zipcurdir(s_zipfile, s_include)
+zzipfiles("S R m", s_zipfile, s_include, "")
+return lasterror()
+#EndFunction
+
+#DefineFunction Unzipcurdir(s_zipfile, s_include)
+zunzipfiles("u o", s_zipfile, s_include, "", "")
+return lasterror()
+#EndFunction
+
+#DefineFunction DirDelete(s_dir)
+s_batcondir ="c:\batcon"
+;DirChange(s_batconDir)
+DirChange("c:\")
+if direxist(s_dir)
+o =objectaccess("scripting.filesystemobject", @true)
+ErrorMode(@off)
+i =o.deletefolder(s_dir, @true)
+DirRemove(s_dir)
+ErrorMode(@cancel)
+objectclose(o)
+;pause(i, "")
+endif
+If DirExist(s_dir) Then Display(2, "Folder not deleted!", s_dir)
+return !direxist(s_dir)
+#EndFunction
+
+#DefineFunction DirKill(s_killdir, i_attrset)
+s_curdir =dirget()
+dirchange(s_killdir)
+s_dirlist =diritemize('*')
+i_dircount =itemcount(s_dirlist, @tab)
+for i_dir =1 to i_dircount
+s_dir =itemextract(i_dir, s_dirlist, @tab)
+dirkill(s_dir, i_attrset)
+endfor
+s_filelist =fileitempath('*')
+if i_attrset then fileattrset(s_filelist, "rash")
+filedelete(s_filelist)
+dirchange(s_curdir)
+dirremove(s_killdir)
+#EndFunction
+
+#DefineFunction FileName(s_filespec)
+s =fileextension(s_filespec)
+if s !="" then s =strcat('.', s)
+return strcat(fileroot(s_filespec), s)
+#EndFunction
+
+#DefineFunction FilePathRoot(s_filespec)
+return strcat(filepath(s_filespec), fileroot(s_filespec))
+#EndFunction
+
+#DefineFunction FilePathname(s_filespec)
+return strcat(filepath(s_filespec), filename(s_filespec))
+#EndFunction
+
+#DefineFunction FileDir(s_filespec)
+s =filepath(s_filespec)
+i =strlen(s) -1
+return strsub(s, 1, i)
+#EndFunction
+
+#DefineFunction htmstrip(o_func, o_exp, s_sourcefile, s_targetfile)
+;s_title =""
+varget("s_codelist")
+o_exp.global =@true
+o_exp.ignorecase =@true
+s_replace =""
+s_body =fileget(s_sourcefile, "")
+o_exp.pattern ="<script(\n|.)+?</script>"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+o_exp.pattern ="<style(\n|.)+?</style>"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+
+s_replace =@crlf
+;o_exp.pattern ="<p>"
+o_exp.pattern ="[^\r]\n"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+
+if @false
+i =strindexnc(s_body, "<title", 1, @fwdscan)
+if i
+i = i +7
+j =strindexnc(s_body, "</title>", i, @fwdscan)
+if j
+s_title =strtrim(strsub(s_body, i, (j -i)))
+endif
+endif
+endif
+
+s_body =httpstriphtml(s_body)
+b_body =binaryalloc(strlen(s_body))
+binarypokestr(b_body, 0, s_body)
+i_codecount =itemcount(s_codelist, @tab)
+binaryreplace(b_body, "&#9;", @tab, @false)
+binaryreplace(b_body, "&#10;", @crlf, @false)
+for i_code =1 to i_codecount
+s =itemextract(i_code, s_codelist, @tab)
+s1 =itemextract(1, s, '|')
+s2 =itemextract(2, s, '|')
+binaryreplace(b_body, s1, s2, @false)
+endfor
+s_body =binarypeekstr(b_body, 0, binaryeodget(b_body))
+binaryfree(b_body)
+;fileput(s_targetfile, strcat(s_title, @crlf, @crlf, s_body))
+fileput(s_targetfile, s_body)
+return fileexist(s_targetfile)
+#EndFunction
+
+;#DefineFunction htm2txt(o_htm_app, o_htm_cot, s_sourcefile, s_targetfile)
+#DefineFunction htm2txt(o_func, o_exp, s_sourcefile, s_targetfile)
+varget("s_loopsecs")
+varget("s_looptries")
+s_tempfile =""
+;varget("o_exp")
+o_exp.global =@true
+o_exp.ignorecase =@true
+o_exp.pattern ="<!(\n|.)*?-->"
+s_body =fileget(s_sourcefile, "")
+s_replace =""
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+o_exp.pattern ="<script(\n|.)*?</script>"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+o_exp.pattern ="<object(\n|.)*?</object>"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+if @true
+o_exp.pattern ="<frameset(\n|.)*?</frameset>"
+i =o_exp.test(s_body)
+if i then s_body =o_exp.replace(s_body, s_replace)
+endif
+s_tempfile =filecreatetemp("")
+fileput(s_tempfile, s_body)
+s_sourcefile =s_tempfile
+o_htm_app =objectaccess("InternetExplorer.Application", @true)
+o_htm_app.visible =@false
+o_htm_app.silent =@true
+;o_htm_app.navigate(s_sourcefile, (1 & 2 & 4))
+;o_htm_app.navigate(s_sourcefile, (1 | 2 | 4))
+o_htm_app.navigate(s_sourceFile)
+;s_now =timeymdhms()
+While o_htm_app.busy || o_htm_app.readystate<>4
+TimeDelay(0.1)
+;yield
+s =timeymdhms()
+if abs(timediffsecs(s_now, s)) >=(s_loopsecs *s_looptries)
+;boxline("Unable to stabilize web page!")
+break
+endif
+EndWhile
+o_doc =o_htm_app.document
+if o_doc
+o_body =o_doc.body
+if o_body
+o_range =o_body.createtextrange()
+if o_range
+s_text =o_range.text
+fileput(s_targetfile, s_text)
+objectclose(o_range)
+endif ; range
+objectclose(o_body)
+endif ; body
+o_doc.close()
+objectclose(o_doc)
+endif ; document
+;o_htm_app.quit()
+ObjectClose(o_htm_app)
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction chm2txt(s_sourcefile, s_targetfile)
+vargetall()
+s_dirtemp =filecreatetemp("dir")
+;s_dirtemp = "c:\temp\tmp"
+if fileexist(s_dirtemp) then filedelete(s_dirtemp)
+dirmake(s_dirtemp)
+s_dirtemp =FileNameShort(s_dirtemp)
+dirchange(s_dirtemp)
+SayString("Decompiling CHM archive")
+;use 7z instead
+s =strcat(dirwindows(0), "hh.exe")
+;RunProgram(@False, s, `-decompile %s_dirtemp% %s_sourcefile%`)
+s_exe = StrCat(s_batconPath, "7z.exe")
+s_params = 'x %s_sourceFile% -o%s_dirTemp%'
+RunProgram(@False, s_exe, s_params)
+
+;RunProgram(@False, s, `-decompile %s_dirtemp% %s_sourcefile%`)
+;RunProgram(@False, s, `-decompile %s_dirtemp% %s_sourcefile%`)
+s_htmlist =fileitemsub(s_dirtemp, "*.htm|*.html")
+s_htmlist =listunique(s_htmlist, @false)
+SayString("Converting to text")
+i_htmcount =itemcount(s_htmlist, @tab)
+;s_now =TimeYmdHms()
+for i_htm = 1 to i_htmcount
+s_htmfile =itemextract(i_htm, s_htmlist, @tab)
+if !fileexist(s_htmfile) then continue
+s_txtfile =strcat(filepath(s_htmfile), fileroot(s_htmfile), ".txt")
+;htmstrip(o_func, o_exp, s_htmfile, s_txtfile)
+;htm2txt(o_htm_app, o_htm_cot, s_htmfile, s_txtfile)
+;htm2txt(o_func, o_exp, s_htmfile, s_txtfile)
+;np_htm2txt(s_HTMFile, s_TXTFile)
+HtmlFile2Txt(s_HTMFile, s_TXTFile)
+If 0 Then
+saystring(i_htm)
+if i_htm ==19 Then
+filecopy(s_htmfile, "c:\temp\tmp.htm", @false)
+fileput("c:\temp\tmp.txt", s_htmfile)
+exit
+endif
+;HTMLFile2TXTFile(s_HTMFile, s_TXTFile)
+EndIf
+s_body =fileget(s_htmfile, "")
+s =strtagtext(s_body, '<title>', '</title>')
+if strempty(s)
+s_root =fileroot(s_txtfile)
+s1 =strreplace(s_root, ' ', "")
+s_body =fileget(s_txtfile, "")
+i =strindexnc(s_body, @crlf, 1, @fwdscan)
+if i 
+i =i -1
+else
+i =strlen(s_body)
+endif
+s2 =strreplace(strleft(s_body, i), ' ', "")
+if !strequiv(s1, s2) then fileput(s_txtfile, strcat(s_root, @crlf, @crlf, s_body))
+endif
+if fileexist(s_htmfile) && fileexist(s_txtfile) then filedelete(s_htmfile)
+s_logfile = StrCat(s_batconPath, "chm2txt.log")
+;s_now =PercentComplete(s_now, i_htm, i_htmcount, s_verbose, i_debug, s_logfile)
+endfor
+s_tempfile =filecreatetemp("ff")
+; no longer work around Word conversion that loses formfeeds
+;fileput(s_tempfile, iif(s_plain, "|/", s_ff))
+fileput(s_tempfile, s_ff)
+s_txtlist =strreplace(strlower(s_htmlist), strcat("htm", @tab), strcat("txt", @tab, s_tempfile, @tab))
+s_txtlist =strreplace(s_txtlist, strcat("html", @tab), strcat("txt", @tab, s_tempfile, @tab))
+SayString("Combining text files")
+s_HHCFile =StrCat(s_dirtemp, '\', FileRoot(s_sourceFile), ".hhc")
+If !FileExist(s_HHCFile)
+s_HHCFile =FileItemPath(StrCat(s_DirTemp, '\', "*.hhc"))
+If ItemCount(s_HHCFile, @tab) Then s_HHCFile =ItemExtract(1, s_HHCFile, @tab)
+EndIf
+If FileExist(s_HHCFile)
+HHCCombine(s_HHCFile, s_targetFile)
+Else
+errormode(@off)
+fileappend(s_txtlist, s_targetfile)
+errormode(@cancel)
+EndIf
+SayString("Cleaning up")
+dirchange(strsub(s_dirtemp, 1, 3))
+dirchange(s_batcondir)
+dirdelete(s_dirtemp)
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction xls2txt()
+;o_book =o_xls_cot.open(s_sourcefile ::ReadOnly=@true, confirmconversions=@false)
+o_sheets =o_book.sheets
+i_sheetcount =o_sheets.count
+s_book =""
+for i_sheet =1 to i_sheetcount
+o_sheet =o_sheets.item(i_sheet)
+if fileexist(s_targetfile) then filedelete(s_targetfile)
+o_sheet.saveas(::FileName=s_targetfile, FileFormat=21, CreateBackup=@false)
+s_name =o_sheet.name
+objectclose(o_sheet)
+o_book.close()
+objectclose(o_book)
+s =strcat(s_name, @crlf, @crlf, fileget(s_targetfile, ""))
+s_book =strcat(s_book, num2char(12), s)
+o_book =o_xls_cot.open(s_sourcefile ::ReadOnly=@true)
+o_sheets =o_book.sheets
+endfor
+
+fileput(s_targetfile, s_book)
+;o_book.close()
+objectclose(o_book)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction hlp2rtf(s_dirtemp, s_sourcefile, s_targetfile)
+varget("s_batcondir")
+s_dir =dirget()
+dirchange(s_dirtemp)
+s =filenameshort(s_sourcefile)
+s =strcat(s_dirtemp, '\', filename(s))
+filecopy(s_sourcefile, s, @false)
+s_exe ="%s_batcondir%\hlprtf32.exe"
+;If @False
+if fileexist(s_exe)
+if !fileexist(strcat(dirwindows(0), "hlp2rtf.ini")) then filecopy("%s_batcondir%\hlp2rtf.ini", strcat(dirwindows(0), "hlp2rtf.ini", @false))
+RunProgram(@False, s_exe, s)
+else
+;eliminate /r parameter
+;RunProgram(@False, "%s_batcondir%\helpdeco.exe", "%s% /r /y")
+RunProgram(@False, "%s_batcondir%\helpdeco.exe", "%s% /y")
+endif
+ErrorMode(@Off)
+if fileexist(s) then filedelete(s)
+ErrorMode(@Cancel)
+if fileitemize("*.bmp|*.wmf") !="" then filedelete("*.bmp|*.wmf")
+s =strcat(filepathroot(s), '.', fileextension(s_targetfile))
+;if fileexist(s_targetfile) then filedelete(s_targetfile)
+if !strequiv(s, s_targetfile) then filemove(s, s_targetfile, @false)
+dirchange(s_dir)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction hlp2txt(o_doc_app, o_doc_cot, s_sourcefile, s_targetfile)
+varget("s_batcondir")
+s_dirtemp =filecreatetemp("dir")
+if fileexist(s_dirtemp) then filedelete(s_dirtemp)
+dirmake(s_dirtemp)
+s= strcat(s_dirtemp, '\', fileroot(s_sourcefile), ".rtf")
+hlp2rtf(s_dirtemp, s_sourcefile, s)
+varSet("s_sourceext", "doc")
+VarSet("s_targetext", "txt")
+VarSet("s_conversion", "doc2txt")
+doc2txt(o_doc_app, o_doc_cot, s, s_targetfile)
+dirchange(strsub(s_dirtemp, 1, 3))
+dirchange(s_batcondir)
+dirdelete(s_dirtemp)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction ppt2txt(o_ppt_app, o_ppt_cot, s_sourcefile, s_targetfile)
+varget("s_logfile")
+varget("s_verbose")
+varget("i_debug")
+o_ppt =o_ppt_cot.open(s_sourcefile :: readonly =@true)
+s =o_ppt.name
+;if s !="" then s_text =strcat("Name: ", s)
+s_text =fileroot(s)
+
+o_slides =o_ppt.slides
+i_slidecount =o_slides.count
+s_text =strcat(s_text, @crlf, i_slidecount, " Slide", iif(i_slidecount ==1, "", 's'))
+;s_now =TimeYmdHms()
+for i_slide =1 to i_slidecount
+o_slide =o_slides.item(i_slide)
+;s_text =strcat(s_text, num2char(12), "Slide ", i_slide)
+s_text =strcat(s_text, @crlf, @crlf, @crlf, "Slide ", i_slide)
+
+o_notes =o_slide.notespage
+i_notecount =o_notes.count
+i_notelabel =@true
+for i_note =1 to i_notecount
+o_note =o_notes.item(i_note)
+o_ships =o_note.shapes
+i_shipcount =o_ships.count
+for i_ship =1 to i_shipcount
+o_ship =o_ships.item(i_ship)
+if o_ship.hastextframe
+o_frame =o_ship.textframe
+o_text =o_frame.textrange
+s =o_text.text
+if s !=""
+if i_notelabel
+s_text =strcat(s_text, @crlf, "Notes:", @crlf, s)
+i_notelabel =@false
+else
+s_text =strcat(s_text, @crlf, s)
+endif
+endif
+objectclose(o_text)
+objectclose(o_frame)
+endif
+objectclose(o_ship)
+endfor
+objectclose(o_ships)
+objectclose(o_note)
+endfor
+objectclose(o_notes)
+
+o_shapes =o_slide.shapes
+i_shapecount =o_shapes.count
+i_outlinelabel =@true
+for i_shape =1 to i_shapecount
+o_shape =o_shapes.item(i_shape)
+if o_shape.hastextframe
+o_textframe =o_shape.textframe
+o_textrange =o_textframe.textrange
+s =o_textrange.text
+if s !="" && strlower(strtrim(s)) !="outline" 
+if i_outlinelabel
+s_text =strcat(s_text, @crlf, "Outline:", @crlf, s)
+i_outlinelabel =@false
+else
+s_text =strcat(s_text, @crlf, s)
+endif
+endif
+objectclose(o_textrange)
+objectclose(o_textframe)
+endif
+if !o_shape.hastextframe || (o_shape.hastextframe && s =="")
+s =o_shape.alternativetext
+if s !="" then s_text =strcat(s_text, @crlf, s)
+endif
+i_type =o_shape.type
+if i_type ==15 ; texteffect
+o_texteffect =o_shape.texteffect
+s =o_texteffect.text
+if s !="" && (s !=o_shape.alternativetext) then s_text =strcat(s_text, @crlf, "Text Effect: ", s)
+endif
+
+objectclose(o_shape)
+endfor
+objectclose(o_slide)
+;s_now =PercentComplete(s_now, i_slide, i_slidecount, s_verbose, i_debug, s_logfile)
+endfor
+fileput(s_targetfile, s_text)
+o_ppt.close()
+objectclose(o_ppt)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction PlainText(s_targetfile)
+if @true
+varget("s_batconpath")
+varget("s_conversion")
+s_profile =strcat(s_batconpath, s_conversion, ".pro")
+s_profile = StrCat(s_batconPath, "chm2txt.pro")
+TextPro(s_profile, s_targetfile, s_targetfile, @false, @false)
+s_profile =strcat(s_batconpath, "txt.pro")
+s_profile = StrCat(s_batconPath, "txt.pro")
+TextPro(s_profile, s_targetfile, s_targetfile, @true, @false)
+s_profile =strcat(s_batconpath, "custom.pro")
+if fileexist(s_profile) then TextPro(s_profile, s_targetfile, s_targetfile, @false, @false)
+varget("s_linelength")
+;if strequiv(fileextension(s_targetfile), "txt") && s_linelength then filewrap(o_func, s_targetfile, s_linelength)
+s_profile =strcat(s_batconpath, "toc.pro")
+s_profile = StrCat(s_batconPath, "toc.pro")
+s_tocfile =filecreatetemp("toc")
+TextPro(s_profile, s_targetfile, s_tocfile, @false, @true)
+s_tempfile =filecreatetemp("")
+fileappend(strcat(s_tocfile, @tab, s_targetfile), s_tempfile)
+if filesize(s_tempfile) then filemove(s_tempfile, s_targetfile, @false)
+if fileexist(s_tocfile) then filedelete(s_tocfile)
+s_profile =strcat(s_batconpath, "txt.pro")
+s_profile = StrCat(s_batconPath, "txt.pro")
+TextPro(s_profile, s_targetfile, s_targetfile, @false, @false)
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction doc2txt(o_doc_app, o_doc_cot, s_sourcefile, s_targetfile)
+i_samefile =strequiv(s_sourcefile, s_targetfile)
+;pause(o_doc_app, o_doc_cot)
+o_doc_app.visible =-1
+o_doc_app.DisplayAlerts =@false
+;substitute -1 for 1
+;o_doc =o_doc_cot.open(s_sourcefile :: AddToRecentFiles=@false, ReadOnly=!i_samefile, Revert=@true, ConfirmConversions=@false)
+;errormode(@off)
+o_doc =o_doc_cot.open(s_sourcefile)
+;errormode(@cancel)
+;:: AddToRecentFiles=@false, ReadOnly=-1, Revert=-1, ConfirmConversions=@false)
+if o_doc
+varget("s_plain")
+if s_plain
+o_range =o_doc.range
+if o_range
+o_find =o_range.find
+o_find.ClearFormatting()
+o_find.Forward =@True
+o_find.Wrap =1
+o_find.Format =@False
+o_find.MatchCase =@True
+o_find.MatchWholeWord =@False
+o_find.MatchAllWordForms =@False
+o_find.MatchSoundsLike =@False
+o_find.MatchWildcards =@True
+o_find.Text ="^m"
+o_replace =o_find.replacement
+if o_replace
+o_replace.ClearFormatting()
+o_replace.Text ="|/"
+i =o_find.Execute(:: Replace=2)
+objectclose(o_replace)
+endif
+objectclose(o_find)
+endif
+objectclose(o_range)
+endif
+;simplify to debug
+;o_doc.saveas(:: FileName=s_targetfile, FileFormat=2, AddToRecentFiles=@false)
+o_doc.SaveAs(s_TargetFile, 2)
+o_doc.close()
+objectclose(o_doc)
+endif
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction pdf2txt(s_batcondir, s_sourcefile, s_targetfile)
+s ="c:\program files\soliddocuments\solidConverterPDF\scPDF\solidconverterpDF.exe"
+if fileexist(s)
+;try to block display
+;RunProgram(@False, s, `/i "%s_sourcefile%" /o "%s_targetFile%" /c txt /w x /y`)
+RunProgram(@False, s, `/i "%s_sourcefile%" /o "%s_targetFile%" /c txt /y`)
+Else
+s ="%s_batcondir%\pdftv.exe"
+if fileexist(s)
+RunProgram(@False, s, `-c "%s_sourcefile%" "%s_targetfile%"`)
+Else
+;RunProgram(@False, "%s_batcondir%\pdf2ascii.exe", `"%s_sourcefile%" "%s_targetfile%"`)
+RunProgram(@False, "%s_batcondir%\pdftotext.exe", `"%s_sourcefile%"`)
+endif
+EndIf
+return fileexist(s_targetfile)
+#EndFunction
+
+#DefineFunction StrContains(s_super, s_sub)
+return strindexnc(s_super, s_sub, 1, @fwdscan)
+#EndFunction
+
+#DefineFunction ListContains(s_list, s_item)
+return itemlocate(strlower(s_item), strlower(s_list), @tab)
+#EndFunction
+
+#DefineFunction StrEquiv(s1, s2)
+return !stricmp(s1, s2)
+#EndFunction
+
+#DefineFunction StrLeadEquiv(s1, s2)
+i1 =strlen(s1)
+i2 =strlen(s2)
+return (i1 && i2 && strequiv(strsub(s1, 1, i2), s2))
+#EndFunction
+
+#DefineFunction ButtonClick(s_WindowClass, s_ButtonID)
+IgnoreInput(@true)
+intcontrol(12, 9, "", 0, 0) ;disable Control+Break
+h_Window =cFindByClass(s_WindowClass)
+h_control =cWndByID(h_Window, s_ButtonID) 
+cClickButton(h_Control)
+intcontrol(12, 1, "", 0, 0) ;enable Control+Break
+IgnoreInput(@false)
+return
+#EndFunction
+
+#DefineFunction url2file(s_url, s_file)
+s_server =httpgetserver(s_url)
+s_path =httpgetpath(s_url)
+httprecvfile(s_server, s_path, s_file, 0)
+return fileexist(s_file)
+#EndFunction
+
+#DefineFunction GetURL(s_source, s_targetDir, s_target, s_verbose, i_debug, s_logfile)
+; 0-based requests are Scheme,HostName,UserName,Password,UrlPath,ExtraInfo
+s_scheme =iparseurl(s_source, 0, 0)
+s_host =iparseurl(s_source, 0, 1)
+s_filepathname =iparseurl(s_source, 0, 3)
+s_extra =iparseurl(s_source, 0, 4)
+h_inet =ibegin(0, "", "")
+h_data =openurl(h_inet, s_url)
+geturl(s_filefullname)
+i =ireaddata, i_data, strcat(s_batconpath, s_filename))
+return fileexist(s_targetfile)
+; The host name is the first part of the URL, minus the http://
+;host="www.windowware.com"
+;part of the URL we wish to GET is *everything* after the host name
+;s_url="winware/download.html"
+if strlower(strsub(s_source, 1, 7)) =="http://" then s_source =strsub(s_source, 8, -1)
+i =strindex(s_source, '/', 1, @fwdscan)
+if i ==0
+host =s_source
+s_url =""
+else
+host =strsub(s_source, 1, i-1)
+s_url =strsub(s_source, (i+1), -1)
+endif
+;Define output file name
+;outfile=strcat(DirGet(),"result.html")
+if s_target ==""
+outfile =strcat(fileroot(s_url), '.', fileextension(s_url))
+else
+outfile =s_target
+endif
+if outfile =='.' then outfile =strcat(host, ".htm")
+outfile =iurldecode(outfile)
+;boxline("Downloading %outfile%")
+outfile =strcat(s_targetdir, '\', outfile)
+
+; Basic web page fetch script
+tophandle=iBegin(0,"","")
+connecthandle=iHostConnect(tophandle, host, @HTTP, "", "")
+datahandle=iHttpInit(connecthandle,"GET",s_url,"", 0)
+if datahandle==0
+err=iGetLastError()
+;boxline("Error %err%")
+iClose(tophandle)
+;exit
+return
+endif
+rslt = iHttpOpen(datahandle, "", 0, 0);
+if rslt=="ERROR" || rslt!=200
+if rslt == "ERROR"
+errstr = "WinInet Error"
+rslt = iGetLastError()
+else
+errstr = "HTTP Error"
+endif
+;boxline("%errstr% %rslt%")
+iClose(tophandle)
+;exit
+return
+endif
+xx=iReadData(datahandle,outfile)
+iClose(datahandle)
+iClose(connecthandle)
+iClose(tophandle)
+return fileexist(outfile)
+#EndFunction
+
+#DefineFunction FileAccess(s_file)
+errormode(@off)
+i =fileopen(s_file, "read")
+errormode(@cancel)
+if i then fileclose(i)
+return i
+#EndFunction
+
+#DefineFunction AppWinClose(s_appwindow, s_appfile)
+s =s_appwindow
+if winexist("~%s%") then intcontrol(48, "~%s%", 0, 0, 0)
+s =strupper(s)
+if winexist("~%s%") then intcontrol(48, "~%s%", 0, 0, 0)
+return winexist("~%s%")
+#EndFunction
+
+#DefineFunction Null(x)
+return ""
+#EndFunction
+
+#DefineFunction One(x)
+return 1
+#EndFunction
+
+#DefineSubroutine InitGetKey()
+s_dll =strcat(dirwindows(1), "user32.dll")
+h_dll =dllload(s_dll)
+s_EntryPoint ="GetKeyboardState"
+b_keystates1=binaryalloc(256)
+b_keystates2=binaryalloc(256)
+a_lookupkeys =arrdimension(256)
+a_lookupkeys[0] ="Unassigned"
+a_lookupkeys[1] ="LeftMouse"
+a_lookupkeys[2] ="RightMouse"
+a_lookupkeys[3] ="Ctrl-Break"
+a_lookupkeys[4] ="MidMouse"
+a_lookupkeys[5] ="Undefined"
+a_lookupkeys[6] ="Undefined"
+a_lookupkeys[7] ="Undefined"
+a_lookupkeys[8] ="BackSpace"
+a_lookupkeys[9] ="Tab"
+a_lookupkeys[10] ="Undefined"
+a_lookupkeys[11] ="Undefined"
+a_lookupkeys[12] ="Clear"
+;a_lookupkeys[13] ="Enter"
+a_lookupkeys[13] ='~'
+a_lookupkeys[14] ="Undefined"
+a_lookupkeys[15] ="Undefined"
+;a_lookupkeys[16] ="Shift"
+a_lookupkeys[16] ='+'
+;a_lookupkeys[17] ="Ctrl"
+a_lookupkeys[17] ='^'
+;a_lookupkeys[18] ="Alt"
+a_lookupkeys[18] ='!'
+a_lookupkeys[19] ="Pause"
+a_lookupkeys[20] ="CapsLock"
+a_lookupkeys[21] ="Kanji"
+a_lookupkeys[22] ="Kanji"
+a_lookupkeys[23] ="Kanji"
+a_lookupkeys[24] ="Kanji"
+a_lookupkeys[25] ="Kanji"
+a_lookupkeys[26] ="Undefined"
+a_lookupkeys[27] ="ESC"
+a_lookupkeys[28] ="Kanji"
+a_lookupkeys[29] ="Kanji"
+a_lookupkeys[30] ="Kanji"
+a_lookupkeys[31] ="Kanji"
+a_lookupkeys[32] ="Space"
+a_lookupkeys[33] ="PageUp"
+a_lookupkeys[34] ="PageDown"
+a_lookupkeys[35] ="End"
+a_lookupkeys[36] ="Home"
+a_lookupkeys[37] ="Left"
+a_lookupkeys[38] ="Up"
+a_lookupkeys[39] ="Right"
+a_lookupkeys[40] ="Down"
+a_lookupkeys[41] ="Select"
+a_lookupkeys[42] ="OEM"
+a_lookupkeys[43] ="Execute"
+a_lookupkeys[44] ="PrtScreen"
+a_lookupkeys[45] ="Ins"
+a_lookupkeys[46] ="Del"
+a_lookupkeys[47] ="Help"
+a_lookupkeys[48] ="0"
+a_lookupkeys[49] ="1"
+a_lookupkeys[50] ="2"
+a_lookupkeys[51] ="3"
+a_lookupkeys[52] ="4"
+a_lookupkeys[53] ="5"
+a_lookupkeys[54] ="6"
+a_lookupkeys[55] ="7"
+a_lookupkeys[56] ="8"
+a_lookupkeys[57] ="9"
+a_lookupkeys[58] ="Undefined"
+a_lookupkeys[59] ="Undefined"
+a_lookupkeys[60] ="Undefined"
+a_lookupkeys[61] ="Undefined"
+a_lookupkeys[62] ="Undefined"
+a_lookupkeys[63] ="Undefined"
+a_lookupkeys[64] ="Undefined"
+a_lookupkeys[65] ="A"
+a_lookupkeys[66] ="B"
+a_lookupkeys[67] ="C"
+a_lookupkeys[68] ="D"
+a_lookupkeys[69] ="E"
+a_lookupkeys[70] ="F"
+a_lookupkeys[71] ="G"
+a_lookupkeys[72] ="H"
+a_lookupkeys[73] ="I"
+a_lookupkeys[74] ="J"
+a_lookupkeys[75] ="K"
+a_lookupkeys[76] ="L"
+a_lookupkeys[77] ="M"
+a_lookupkeys[78] ="N"
+a_lookupkeys[79] ="O"
+a_lookupkeys[80] ="P"
+a_lookupkeys[81] ="Q"
+a_lookupkeys[82] ="R"
+a_lookupkeys[83] ="S"
+a_lookupkeys[84] ="T"
+a_lookupkeys[85] ="U"
+a_lookupkeys[86] ="V"
+a_lookupkeys[87] ="W"
+a_lookupkeys[88] ="X"
+a_lookupkeys[89] ="Y"
+a_lookupkeys[90] ="Z"
+a_lookupkeys[91] ="Undefined"
+a_lookupkeys[92] ="Undefined"
+a_lookupkeys[93] ="Undefined"
+a_lookupkeys[94] ="Undefined"
+a_lookupkeys[95] ="Undefined"
+a_lookupkeys[96] ="NumPad0"
+a_lookupkeys[97] ="NumPad1"
+a_lookupkeys[98] ="NumPad2"
+a_lookupkeys[99] ="NumPad3"
+a_lookupkeys[100] ="NumPad4"
+a_lookupkeys[101] ="NumPad5"
+a_lookupkeys[102] ="NumPad6"
+a_lookupkeys[103] ="NumPad7"
+a_lookupkeys[104] ="NumPad8"
+a_lookupkeys[105] ="NumPad9"
+a_lookupkeys[106] ="Multiply"
+a_lookupkeys[107] ="Add"
+a_lookupkeys[108] ="Separator"
+a_lookupkeys[109] ="Subtract"
+a_lookupkeys[110] ="Decimal"
+a_lookupkeys[111] ="Divide"
+a_lookupkeys[112] ="F1"
+a_lookupkeys[113] ="F2"
+a_lookupkeys[114] ="F3"
+a_lookupkeys[115] ="F4"
+a_lookupkeys[116] ="F5"
+a_lookupkeys[117] ="F6"
+a_lookupkeys[118] ="F7"
+a_lookupkeys[119] ="F8"
+a_lookupkeys[120] ="F9"
+a_lookupkeys[121] ="F10"
+a_lookupkeys[122] ="F11"
+a_lookupkeys[123] ="F12"
+a_lookupkeys[124] ="F13"
+a_lookupkeys[125] ="F14"
+a_lookupkeys[126] ="F15"
+a_lookupkeys[127] ="F16"
+a_lookupkeys[128] ="F17"
+a_lookupkeys[129] ="F18"
+a_lookupkeys[130] ="F19"
+a_lookupkeys[131] ="F20"
+a_lookupkeys[132] ="F21"
+a_lookupkeys[133] ="F22"
+a_lookupkeys[134] ="F23"
+a_lookupkeys[135] ="F24"
+a_lookupkeys[136] ="Unassigned"
+a_lookupkeys[137] ="Unassigned"
+a_lookupkeys[138] ="Unassigned"
+a_lookupkeys[139] ="Unassigned"
+a_lookupkeys[140] ="Unassigned"
+a_lookupkeys[141] ="Unassigned"
+a_lookupkeys[142] ="Unassigned"
+a_lookupkeys[143] ="Unassigned"
+a_lookupkeys[144] ="NumLock"
+a_lookupkeys[145] ="ScrollLock"
+a_lookupkeys[146] ="Unassigned"
+a_lookupkeys[147] ="Unassigned"
+a_lookupkeys[148] ="Unassigned"
+a_lookupkeys[149] ="Unassigned"
+a_lookupkeys[150] ="Unassigned"
+a_lookupkeys[151] ="Unassigned"
+a_lookupkeys[152] ="Unassigned"
+a_lookupkeys[153] ="Unassigned"
+a_lookupkeys[154] ="Unassigned"
+a_lookupkeys[155] ="Unassigned"
+a_lookupkeys[156] ="Unassigned"
+a_lookupkeys[157] ="Unassigned"
+a_lookupkeys[158] ="Unassigned"
+a_lookupkeys[159] ="Unassigned"
+a_lookupkeys[160] ="Unassigned"
+a_lookupkeys[161] ="Unassigned"
+a_lookupkeys[162] ="Unassigned"
+a_lookupkeys[163] ="Unassigned"
+a_lookupkeys[164] ="Unassigned"
+a_lookupkeys[165] ="Unassigned"
+a_lookupkeys[166] ="Unassigned"
+a_lookupkeys[167] ="Unassigned"
+a_lookupkeys[168] ="Unassigned"
+a_lookupkeys[169] ="Unassigned"
+a_lookupkeys[170] ="Unassigned"
+a_lookupkeys[171] ="Unassigned"
+a_lookupkeys[172] ="Unassigned"
+a_lookupkeys[173] ="Unassigned"
+a_lookupkeys[174] ="Unassigned"
+a_lookupkeys[175] ="Unassigned"
+a_lookupkeys[176] ="Unassigned"
+a_lookupkeys[177] ="Unassigned"
+a_lookupkeys[178] ="Unassigned"
+a_lookupkeys[179] ="Unassigned"
+a_lookupkeys[180] ="Unassigned"
+a_lookupkeys[181] ="Unassigned"
+a_lookupkeys[182] ="Unassigned"
+a_lookupkeys[183] ="Unassigned"
+a_lookupkeys[184] ="Unassigned"
+a_lookupkeys[185] ="Unassigned"
+a_lookupkeys[186] ="OEM"
+a_lookupkeys[187] ="OEM"
+a_lookupkeys[188] ="OEM"
+a_lookupkeys[189] ="OEM"
+a_lookupkeys[190] ="OEM"
+a_lookupkeys[191] ="OEM"
+a_lookupkeys[192] ="OEM"
+a_lookupkeys[193] ="Unassigned"
+a_lookupkeys[194] ="Unassigned"
+a_lookupkeys[195] ="Unassigned"
+a_lookupkeys[196] ="Unassigned"
+a_lookupkeys[197] ="Unassigned"
+a_lookupkeys[198] ="Unassigned"
+a_lookupkeys[199] ="Unassigned"
+a_lookupkeys[200] ="Unassigned"
+a_lookupkeys[201] ="Unassigned"
+a_lookupkeys[202] ="Unassigned"
+a_lookupkeys[203] ="Unassigned"
+a_lookupkeys[204] ="Unassigned"
+a_lookupkeys[205] ="Unassigned"
+a_lookupkeys[206] ="Unassigned"
+a_lookupkeys[207] ="Unassigned"
+a_lookupkeys[208] ="Unassigned"
+a_lookupkeys[209] ="Unassigned"
+a_lookupkeys[210] ="Unassigned"
+a_lookupkeys[211] ="Unassigned"
+a_lookupkeys[212] ="Unassigned"
+a_lookupkeys[213] ="Unassigned"
+a_lookupkeys[214] ="Unassigned"
+a_lookupkeys[215] ="Unassigned"
+a_lookupkeys[216] ="Unassigned"
+a_lookupkeys[217] ="Unassigned"
+a_lookupkeys[218] ="Unassigned"
+a_lookupkeys[219] ="OEM"
+a_lookupkeys[220] ="OEM"
+a_lookupkeys[221] ="OEM"
+a_lookupkeys[222] ="OEM"
+a_lookupkeys[223] ="OEM"
+a_lookupkeys[224] ="OEM"
+a_lookupkeys[225] ="OEM"
+a_lookupkeys[226] ="OEM"
+a_lookupkeys[227] ="OEM"
+a_lookupkeys[228] ="OEM"
+a_lookupkeys[229] ="Unassigned"
+a_lookupkeys[230] ="OEM"
+a_lookupkeys[231] ="Unassigned"
+a_lookupkeys[232] ="Unassigned"
+a_lookupkeys[233] ="OEM"
+a_lookupkeys[234] ="OEM"
+a_lookupkeys[235] ="OEM"
+a_lookupkeys[236] ="OEM"
+a_lookupkeys[237] ="OEM"
+a_lookupkeys[238] ="OEM"
+a_lookupkeys[239] ="OEM"
+a_lookupkeys[240] ="OEM"
+a_lookupkeys[241] ="OEM"
+a_lookupkeys[242] ="OEM"
+a_lookupkeys[243] ="OEM"
+a_lookupkeys[244] ="OEM"
+a_lookupkeys[245] ="OEM"
+a_lookupkeys[246] ="OEM"
+a_lookupkeys[247] ="Unassigned"
+a_lookupkeys[248] ="Unassigned"
+a_lookupkeys[249] ="Unassigned"
+a_lookupkeys[250] ="Unassigned"
+a_lookupkeys[251] ="Unassigned"
+a_lookupkeys[252] ="Unassigned"
+a_lookupkeys[253] ="Unassigned"
+a_lookupkeys[254] ="Unassigned"
+a_lookupkeys[255] ="Unassigned"
+#EndSubroutine
+
+#DefineSubroutine ExitGetKey()
+dllfree(h_dll)
+binaryfree(b_keystates1)
+binaryfree(b_keystates2)
+drop(a_lookupkeys)
+drop(b_keystates1, b_keystates2)
+drop(i, i1, i2, i_keystate, i_len)
+drop(h_dll)
+drop(s_dll, s_entrypoint)
+drop(s, s_addstr, s_hotkey, s_keystr)
+#EndSubroutine
+
+#DefineSubroutine GetKey()
+;intcontrol(80, 0, 0, 0, 0) wait for no keys pressed
+if !isdefined(a_lookupkeys) then initgetkey()
+while @true
+if dllcall(h_dll, long:s_EntryPoint, lpbinary:b_keystates1) then break 
+endwhile
+binaryeodset(b_keystates1, 256)
+
+i_condition =@true
+while i_condition
+while @true
+if dllcall(h_dll, long:s_EntryPoint, lpbinary:b_keystates2) 
+binaryeodset(b_keystates2, 256)
+if (!binarycompare(b_keystates1, 0, b_keystates2, 0, 16) || !binarycompare(b_keystates1, 19, b_keystates2, 19, 237)) then break 
+endif
+endwhile
+s =binarypeekhex(b_keystates2, 0, 256)
+s_hotkey =""
+i_start =1
+while @true
+i =strindex(s, '8', i_start, @fwdscan)
+if i ==0 then break
+s_hotkey =strcat(s_hotkey, a_lookupkeys[(i -1) /2])
+i_start =i +2
+endwhile
+s_hotkey =strreplace(s_hotkey, 'D', "")
+return s_hotkey
+#EndSubroutine
+
+#DefineSubroutine GetKey0()
+;intcontrol(80, 0, 0, 0, 0) wait for no keys pressed
+if !isdefined(a_lookupkeys) then initgetkey()
+while @true
+if dllcall(h_dll, long:s_EntryPoint, lpbinary:b_keystates1) then break 
+endwhile
+binaryeodset(b_keystates1, 256)
+
+i_condition =@true
+while i_condition
+while @true
+if dllcall(h_dll, long:s_EntryPoint, lpbinary:b_keystates2) 
+binaryeodset(b_keystates2, 256)
+if (!binarycompare(b_keystates1, 0, b_keystates2, 0, 16) || !binarycompare(b_keystates1, 19, b_keystates2, 19, 237)) then break 
+endif
+endwhile
+
+s_hotkey =""
+for i =0 to 255
+if i ==3 || i ==13 || i ==68 then continue
+if binarypeek(b_keystates2, i) >1 
+s_hotkey =strcat(s_hotkey, a_lookupkeys[i])
+if i <=15 || i >=19 
+i_condition =@false
+break
+endif
+endif
+endfor
+endwhile
+
+return s_hotkey
+#EndSubroutine
+
+#DefineSubroutine GetAlphaKey()
+while iskeydown(@ctrl)
+;s =""
+for i =65 to 90
+if i ==68 then continue
+j =dllcall(h_dll, Long:"GetAsyncKeyState", long:i)
+;if j <>0 && j <>1 then s =strcat(s, @crlf, i, @tab, j)
+if j <> 0 && j <> 1 then break
+endfor
+if i <=90 then break
+endwhile
+;clipput(s)
+if iskeydown(@ctrl) && i <>91
+s =strcat('^', a_lookupkeys[i])
+else
+s =""
+endif
+return s
+#EndSubroutine
+
+#DefineFunction File2list(s_file)
+s_return =""
+s =""
+h =fileopen(s_file, "read")
+while @true
+s =fileread(h)
+if s =="*EOF*" then break
+s_return =strcat(s_return, s, @tab)
+endwhile
+fileclose(h)
+return s_return
+#EndFunction
+
+#DefineSubroutine appclose(s_programwindow, s_programresident)
+i_return =1
+if winexist("~%s_programwindow%") then i_return =winclose("~%s_programwindow%")
+if appexist(s_programresident) then i_return =intcontrol(56, s_programresident, 1, @false, 0)
+return i_return
+#EndSubroutine
+
+#DefineFunction appendline(s_file, s_line, i_debug)
+i_debug =@false
+if i_debug 
+s =wingetactive()
+display(1, s_line, "")
+if winexist(s) then winactivate(s)
+endif
+Pause(s_file, "")
+h =fileopen(s_file, "append")
+filewrite(h, s_line)
+fileclose(h)
+#EndFunction
+
+#DefineSubroutine Stabilize(i_factor)
+vargetall()
+;IgnoreInput(@true)
+s =wingetactive()
+for i =1 to s_looptries
+snapshot(2)
+i_size1 =binaryclipget(0, 8)
+b1 =binaryalloc(2 *i_size1)
+binaryclipget(b1, 8)
+i0 =winresources(0)
+i3 =winresources(3)
+i4 =winresources(4)
+i10 =winresources(10)
+i13 =winresources(13)
+i14 =winresources(14)
+i15 =winresources(15)
+i16 =winresources(16)
+s_size1 =dirsize(environment("temp"), 0, 1)
+Timedelay(i_factor *s_loopsecs)
+j0 =winresources(0)
+j3 =winresources(3)
+j4 =winresources(4)
+j10 =winresources(10)
+j13 =winresources(13)
+j14 =winresources(14)
+j15 =winresources(15)
+j16 =winresources(16)
+s_size2 =dirsize(environment("temp"), 0, 1)
+snapshot(2)
+i_size2 =binaryclipget(0, 8)
+b2 =binaryalloc(2 *i_size2)
+binaryclipget(b2, 8)
+i_return =binarycompare(b1, 0, b2, 0, min(i_size1, i_size2)) 
+binaryfree(b1)
+binaryfree(b2)
+if (s_size1 ==s_size2) && (i0 ==j0) && (i3 ==j3) && (i4 ==j4) && (i10 ==j10) && (i13 ==j13) && (i14 ==j14) && (i15 ==j15) && (i16 ==j16) && (i_size1 ==i_size2) && i_return 
+s_log ="Stabilized on attempt %i%"
+break
+else
+s_log ="Failed to stabilize on attempt %i%"
+endif
+if wingetactive() != s && winexist(s) then winactivate(s)
+next
+;appendline(s_logfile, s_log, i_debug)
+;IgnoreInput(@false)
+return i_return
+#EndSubroutine
+
+#DefineFunction SendKeys(s_keys)
+IgnoreInput(@true)
+intcontrol(12, 9, "", 0, 0) ;disable Control+Break
+i_return =SendKey(s_keys)
+intcontrol(12, 1, "", 0, 0) ;enable Control+Break
+IgnoreInput(@false)
+return i_return
+#EndFunction
+
+#DefineSubroutine DogRun(s_handle, s_event, s_control, s_reserved1, s_reserved2)
+i_return =-1
+switch s_event
+break
+case 0 ;init
+i_namesource =strequiv(strleft(s_conversion, 5), "name4")
+winzoom("~%dogcaption%")
+; dialogprocoptions(s_handle, 1, 10); set a .1 second timer
+dialogprocoptions(s_handle, 2, 1); watch pushbuttons
+dialogprocoptions(s_handle, 3, 1) ;watch radiobuttons
+dialogprocoptions(s_handle, 4, 1) ; watch checkboxes
+dialogprocoptions(s_handle, 5, 1) ; watch single and multi-line editboxes
+dialogprocoptions(s_handle, 6, 1) ; watch filelistbox
+dialogprocoptions(s_handle, 7, 1) ;watch lists
+dialogprocoptions(s_handle, 8, 1) ; watch comboboxes
+dialogprocoptions(s_handle, 9, 1) ; watch calendar
+dialogprocoptions(s_handle, 10, 1) ; watch spinner
+;dialogprocoptions(s_handle, 11, 1) ; watch system menus
+dialogprocoptions(s_handle, 12, 1) ; double-click of filelistbox
+dialogprocoptions(s_handle, 13, 1) ; double-click of itembox
+;dialogprocoptions(s_handle, 1000, 1) ; disable dialog
+;dialogprocoptions(s_handle, 1001, 1) ; change dialog background
+dialogcontrolset(s_handle, 2, 6, s_conversion)
+break
+case 2 ;pushbutton pressed
+switch s_control
+break
+case 19 ; browse
+s =dialogcontrolget(s_handle, 2, 6) ;get item text
+s =strcat(s_batcondir, '\', s, ".rpt")
+if fileexist(s)
+runzoom("iexplore.exe", s)
+else
+s =strcat("No report found for ", fileroot(s), " conversion.")
+message("Alert", s)
+endif
+return -2
+break
+case 20 ; open
+s =strcat("Done (", s_donedir, ')', @tab, "Source (", s_source, ')', @tab, "Target (", s_target, ')')
+IntControl(72, 2, 0, 0, 0)
+i =itemlocate(askitemlist("Open view of wich folder?", s, @tab, @no, @single), s, @tab)
+if i
+s =strcat(s_donedir, @tab, s_source, @tab, s_target)
+s =itemextract(i, s, @tab)
+runzoom(strcat(dirwindows(0), "explorer.exe"), s)
+endif
+return -2
+break
+case 21 ; zap
+s =strcat("Done (", s_donedir, ')', @tab, "Source (", s_source, ')', @tab, "Target (", s_target, ')')
+IntControl(72, 2, 0, 0, 0)
+i =itemlocate(askitemlist("Zap contents of wich folder?", s, @tab, @no, @single), s, @tab)
+if i
+s =strcat(s_donedir, @tab, s_source, @tab, s_target)
+s =itemextract(i, s, @tab)
+dirdelete(s)
+dirmake(s)
+endif
+return -2
+break
+case 22 ;help
+runzoom("iexplore.exe", strcat(s_batconpath, "batcon.txt"))
+break
+case 23 ; quit
+return 0
+break
+case s_control
+return -1
+break
+endswitch
+
+break
+case 3 ;radiobutton selection change
+s_state =dialogcontrolget(s_handle, 8, 2) ; move
+s_style =dialogcontrolstate(s_handle, 12, 2, 0) ; done
+if s_state ==1 && (s_style &2) then dialogcontrolstate(s_handle, 12, 4, 2)
+if s_state ==0 && !(s_style &2) then dialogcontrolstate(s_handle, 12, 3, 2)
+break
+case 7 ; itembox selection changed
+switch s_control
+case 2
+s_conversion =dialogcontrolget(s_handle, s_control, 6) ;get item text
+s_conversion =itemextract(1, s_conversion, @tab)
+s_inifile =strcat(s_batconpath, s_conversion, ".ini")
+s_SourceExt =inireadpvt("SETTINGS", "SourceExt", "", s_inifile)
+s_sourcedir =inireadpvt("SETTINGS", "SourceDir", "", s_inifile)
+s_sourcedir =strreplace(s_sourcedir, "%%BatconDir%%", s_batcondir)
+s_sourcedir =strreplace(s_sourcedir, "%%SourceExt%%", s_sourceext)
+dialogcontrolset(s_handle, 7, 3, s_sourcedir) ; source
+s_TargetExt =inireadpvt("SETTINGS", "TargetExt", "", s_inifile)
+s_TargetDir =inireadpvt("SETTINGS", "TargetDir", "", s_inifile)
+s_TargetDir =strreplace(s_TargetDir, "%%BatconDir%%", s_batcondir)
+s_TargetDir =strreplace(s_TargetDir, "%%TargetExt%%", s_TargetExt)
+dialogcontrolset(s_handle, 14, 3, s_TargetDir) ; target
+if s_sourceext =="zip" && s_targetext =="data"
+dialogcontrolset(s_handle, 13, 4, "&Target file:") ; target
+s_targetfile =strcat(s_batconpath, fileroot(s_sourcedir), ".zip")
+dialogcontrolset(s_handle, 14, 3, s_targetfile) ; target
+else
+dialogcontrolset(s_handle, 13, 4, "&Target folder:") ; target
+dialogcontrolset(s_handle, 14, 3, s_targetdir) ; target
+endif
+s_style =dialogcontrolstate(s_handle, 3, 2, 0) ; plain
+if !i_namesource && strequiv(s, "txt") && (s_style &2) then dialogcontrolstate(s_handle, 3, 4, 2)
+if !i_namesource && !strequiv(s, "txt") && !(s_style &2) then dialogcontrolstate(s_handle, 3, 3, 2)
+break
+endswitch
+break
+case s_event
+if @true
+;if iskeydown(@ctrl) && i_ready 
+ff =num2char(12)
+i_ready =@false
+s_key =getalphakey()
+if s_key =="^L" 
+buttonclick("wb0wcdl3", 115)
+SendKeys(' ')
+endif
+else
+if s_key =="^L" then s_key =""
+i_ready =@true
+endif
+break
+endswitch
+
+return i_return
+:cancel
+intcontrol(72, 2, 0, 0, 0)
+return
+:WBERRORHANDLER
+i_error =lasterror()
+switch i_error
+case 194
+display(2, "Quitting Batcon", "")
+break
+endswitch
+if i_error ==194 then goto cancel
+#EndSubroutine
+
+#DefineFunction iIf(i, x1, x2)
+If i
+x =x1
+Else
+x =x2
+EndIf
+Return x
+#EndFunction
+
+#DefineSubroutine iniLoad(s_file)
+s_list =iniItemizePvt("SETTINGS", s_file)
+i_length =ItemCount(s_list, @tab)
+For i =1 to i_length
+s =ItemExtract(i, s_list, @tab)
+s_%s% =iniReadPvt("SETTINGS", s, "", s_file)
+For i2 =1 to (i -1)
+s1 =ItemExtract(i2, s_list, @tab)
+s_%s% =strreplace(s_%s%, "%%BatconDir%%", s_BatconDir)
+s2 =s_%s%
+s_%s% =StrReplace(s_%s%, strcat("%%", s1, "%%"), s_%s1%)
+next
+varset("s_%s%", s_%s%)
+EndFor
+#EndSubroutine
+
+#DefineSubroutine iniSave(s_file)
+s_list =iniItemizePvt("SETTINGS", s_file)
+i_length =ItemCount(s_list, @tab)
+For i =1 to i_length
+s =ItemExtract(i, s_list, @tab)
+iniWritePvt("SETTINGS", s, s_%s%, s_file)
+next
+#EndSubroutine
+
+#DefineSubroutine SmartCommand(s_command, s1, s2, s3, s4)
+i1 =0
+i98 =1
+i99 =0
+s99 =""
+While i99 ==0
+
+If s_command =="Activate"
+If AppExist(s4)
+If WinExist("~%s1%")
+WinActivate("~%s1%")
+If !StrEmpty(s2) && WinExistChild("~%s1%", "~%s2%")
+WinActiveChild("~%s1%", "~%s2%")
+EndIf
+EndIf
+else
+i98 =s_looptries +1
+i99 =1
+s99 =""
+EndIf
+If StrContains(WinExeName(WinGetActive()), s4) && StrContains(WinGetActive(), s1)
+i99 =1
+s99 =StrCat("Activated ", iIf(StrEmpty(s2), s1, s2))
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 =StrCat("Failed to activate ", iIf(StrEmpty(s2), s1, s2))
+EndIf
+EndIf
+EndIf
+
+If s_command =="Close"
+If i98 ==1
+SendKeys("c^{F4}n")
+EndIf
+;If !WinExistChild("~%s1%", "~%s2%")
+If !WinExistChild("~%s1%", "~%s2%") && fileaccess(s3)
+i99 =1
+s99 ="Closed %s2%"
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to close %s2%"
+EndIf
+EndIf
+EndIf
+
+If s_command =="Launch"
+If i98 ==1
+If FileExist("%s2%\%s3%")
+dirchange(s2)
+RunZoom("%s2%\%s3%", "")
+Else
+s79 =DirWindows(0)
+EndIf
+EndIf
+If AppExist(s4) && WinExist("~%s1%")
+i99 =1
+s99 ="Launched %s3%"
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to launch %s3%"
+EndIf
+EndIf
+EndIf
+
+If s_command =="Lose"
+If WinGetActive() !=s1
+i99 =1
+s99 ="LosT window %s1%"
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to lose window %s1%"
+EndIf
+EndIf
+EndIf
+
+If s_command =="Save"
+If FileExist(s1) && i98 >=2
+;If FileExist(s1) && filesize(s1) >0
+i81 =FileSize(s1)
+If i81 >i1
+i1 =i81
+Else
+i99 =1
+s99 ="Saved %s1%"
+EndIf
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to save %s1%"
+EndIf
+EndIf
+EndIf
+
+If s_command =="Terminate"
+If i98 ==1
+WinClose("~%s1%")
+EndIf
+if i98 >10 && appexist(s2) then intcontrol(56, s2, 1, @false, 0)
+If!AppExist(s2)
+i99 =1
+s99 ="Terminated %s1%"
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to terminate %s1%"
+EndIf
+EndIf
+EndIf
+
+If s_command =="Wait"
+If WinExist("~%s1%")
+winactivate("~%s1%")
+EndIf
+If StrContains(WinGetActive(), s1)
+i99 =1
+s99 ="Waited for %s1%"
+Else
+If i98 >=%s_looptries%
+i99 =1
+s99 ="Failed to wait for %s1%"
+EndIf
+EndIf
+EndIf
+
+If i99 ==0
+i98 =i98 +1
+TimeDelay(s_loopsecs)
+Else
+yields(1)
+Break
+EndIf
+EndWhile
+
+if strempty(s99)
+else
+s99 ="%s99% on attempt %i98%"
+;appendline(s_logfile, s99, i_debug)
+endif
+
+	If i98 >=s_looptries
+stabilize(1)
+i_return =0
+else
+i_return =1
+EndIf
+return i_return
+#EndSubroutine
+
+#DefineSubroutine ControlPut(s_label, s_x, s_y, s_width, s_height, s_type, s_var, s_init, s_return, s_order, s_style, s_font, s_fore, s_back)
+i_order =i_order +1
+If s_x =="" 
+If s_type ==s_prevtype || s_type =="checkbox"
+s_x =i_x +s_prevwidth +8
+else
+s_x =iif(s_type =="editbox", 0, 2)
+endif
+else
+if s_x <= s_prevx && s_y =="" then s_y =i_y +iif(s_prevtype =="editbox", 24, 12)
+endif
+if s_y ==""
+if s_type ==s_prevtype || s_type =="checkbox"
+s_y =i_y
+else
+if s_prevheight ==""
+s_y =0
+else
+if s_prevheight =="default" 
+s_y =i_y +iif(s_prevtype =="editbox", 24, 12)
+else
+s_y =i_y +s_prevheight +16
+endif
+endif
+endif
+endif
+if s_width =="" 
+if StrContains("itembox", s_type)
+s_width =0
+i_count =itemcount(%s_var%, @tab)
+for i =1 to i_count
+s_width =max(s_width, strlen(itemextract(i, %s_var%, @tab)))
+next
+else
+s_width =strlen(s_init)
+endif
+s_width =4 *s_width
+if s_type =="itembox" then s_width =s_width +8
+if s_type =="radiobutton" then s_width =(24 *4)
+if s_type =="checkbox" then s_width =(22 *4)
+if strcontains("checkbox radiobutton", s_type) then s_width =s_width +2
+if s_type =="pushbutton" then s_width =(13 *4)
+endif
+if s_width =="" && s_type =="editbox" then s_width =max(s_width, 4 *28)
+if s_height =="" && s_type =="itembox" then s_height ="28"
+;if s_height =="" then s_height ="default"
+if s_height =="" then s_height =12
+if s_var =="" then s_var ="default"
+if s_init =="" then s_init ="default"
+if s_return =="" && s_type =="pushbutton" && strcontains("&Cancel|E&xit|&Quit", s_init) then s_return ="0"
+if s_return =="" && StrContains("checkbox pushbutton radiobutton", s_type) then s_return =%i_order%
+if s_return =="" then s_return ="default"
+if s_order =="" then s_order ="default"
+if s_style =="" && s_type =="pushbutton" && StrContains("&Convert files &Execute &Go &OK &Save &Search &Submit", s_init) then s_style ="32"
+if s_style =="" then s_style ="default"
+if s_font =="" then s_font ="default"
+if s_fore =="" then s_fore ="default"
+if s_back =="" then s_back ="default"
+s =strfixLeft("%i_order%", '0', 3)
+if s_label ==""
+if s_x +s_width >dogwidth
+s_x =iif(s_type =="editbox", 0, 2)
+s_y =s_y +iif(s_prevtype =="editbox", 24, 12)
+endif
+else
+i =4*strlen(s_label)
+if s_x +i +4 +s_width >dogwidth
+s_x =iif(s_type =="editbox", 0, 2)
+s_y =s_y +iif(s_prevtype =="editbox", 24, 12)
+endif
+dog%s% =`%s_x%, %s_y%, %i%, %s_height%, statictext, default, "%s_label%", default, %s%, %s_style%, %s_font%, %s_fore%, %s_back%`
+i_order =i_order +1
+s =strfixLeft("%i_order%", '0', 3)
+s_x =s_x +i +4
+s_y =s_y -2
+endif
+if s_type =="checkbox" then s_y =(i_order -3) *7
+dog%s% =`%s_x%, %s_y%, %s_width%, %s_height%, %s_type%, %s_var%, "%s_init%", %s_return%, %s%, %s_style%, %s_font%, %s_fore%, %s_back%`
+if s_label !="" then s_y =s_y +2
+dogNumControls =%s% 
+s_prevx =s_x
+s_prevy =s_y
+s_prevtype =s_type
+s_prevwidth =s_width
+s_prevheight =s_height
+i_x =s_x
+i_y =s_y
+return
+#EndSubroutine
+
+#DefineSubroutine DogModify(s_file)
+dogCaption =`Settings` 
+dognumcontrols =0
+dogprocedure ="default"
+s_prevtype =""
+s_prevwidth =""
+s_prevheight =""
+i_x =0
+i_y =0
+i_order =0
+s_keylist =iniItemizePvt("SETTINGS", s_file)
+i_keycount =ItemCount(s_keylist, @tab)
+For i_key =1 to i_keycount
+s =ItemExtract(i_key, s_keylist, @tab)
+s_%s% =iniReadPvt("SETTINGS", s, "", s_file)
+s_val =s_%s%
+;s_val =strfix(s_val, ' ', 60)
+controlput(strfixleft("%s%:", ' ', 16), "", "", (4 *15), "", "editbox", "s_%s%", "%s_val%", "", "", "", "", "", "")
+next
+controlput("", "", "", "", "14", "pushbutton", "", "&Save", "", "", "", "", "", "")
+controlput("", "", "", "", "14", "pushbutton", "", "&Apply", "", "", "", "", "", "")
+controlput("", "", "", "", "14", "pushbutton", "", "&Cancel", "", "", "", "", "", "")
+dogmodifybutton=dialog("dog")
+iniload(s_file)
+switch dogmodifybutton
+break
+case 49
+iniSave(s_initfile)
+break
+endswitch
+
+#EndSubroutine
+
+:Config
+;AddExtender("wwwsk44i.dll") ; WinSoc
+; AddExtender("wsrch34i.dll") ; file searches
+addextender("xGlob34i.dll") ; access global variables in UDFs
+;addextender("Arrayx34i.dll") ; extender for sorting, duplicating, and resizing arrays
+;AddExtender("WWINT34i.DLL") ; Internet functions
+;AddExtender("wwctl44i.dll") ; Control Manager
+;AddExtender("WWZIP34I.DLL")
+;exclusive(@on) ;make WIL run faster by hogging resources
+s_winpath =dirwindows(0)
+varinit()
+i_debug = @off
+varset("i_debug", i_debug)
+varset("s_batconpath", filepath(IntControl (1004, 0, 0, 0, 0)))
+varset("s_batcondir", filedir(s_batconpath))
+varset("s_batconfile", strcat(s_batconpath, "batcon.ini"))
+a_alias =BatconSettings("%s_batcondir%\batcon.ini")
+s_startdir =dirget()
+charconst()
+s_key =""
+i_ready =@true
+s_doctypes =strcat("doc", @tab, "rtf", @tab, "wp5", @tab, "wpd")
+s_verbose =iif(i_debug, @true, @false)
+s_boxtitle =""
+intcontrol(5, 1, 0, 0, 0) ; process system and hidden files
+intcontrol(28, 1, 0, 0, 0) ;use fixed pitch font for for listboxes and ask prompts
+IntControl(29, @tab, 0, 0, 0) ;sets delimiter forfile lists only
+IntControl(33, 1, 0, 0, 0) ;multiple selection lists
+IntControl(35, 25,0,0,0) ; milliseconds between keys
+;IntControl(43) ;wait for input ready
+IntControl (46, 0, 0, 0, 0) ;no delay between window activation attempts
+;IntControl(49, 3, 0, 0, 0) ;add system menus to WIL dialogs and ask functions
+;IntControl (52, 0, 0, 0, 0) ;use system font in WIL dialog boxes
+IntControl (63, 10, 10, 990, 960) ;enlarged WIL dialogs
+IntControl(72, 2, 0, 0, 0) ;set cancel processing to gosub cancel
+;IntControl(73, 2, 0, 0, 0) ;set error processing to gosub wberrorhandler
+IntControl(74, 0, 0, 0, 0) ;do not wait after run command
+IntControl(1008, 1, 0, 0, 0) ;make Alt+F4 work like Control+Break
+;winhide("") ;hide WIL interpreter
+;winzoom("") ;maximize current window
+decimals(1)
+initgetkey()
+;;InitBoxLine()
+varset("s_codelist", inithtmstrip(s_batconfile))
+;o_func =objectopen("funcky")
+;o_exp =objectopen("VBScript.RegExp")
+return ;end of init
+
+:WBERRORHANDLER
+i_error =lasterror()
+switch i_error
+case 194
+display(2, "Quitting Batcon", "")
+break
+endswitch
+if i_error ==194 then goto cancel
+
+;:WBERRORHANDLER
+i_Error=LastError()
+s_error =IntControl(34,i_Error,0,0,0)
+s_line =wberrorhandlerline
+i_offset =wberrorhandleroffset
+s_var =wberrorhandlerassignment
+if !strempty(s_var) then %s_var% ="Oops!"
+ pause("Error", s_error)
+IntControl(73,2,0,0,0)
+return
+
+:main
+i_condition =@true
+while i_condition
+dogFormat=`WWWDLGED,6.1` 
+dogwidth =winmetrics(16) /winmetrics(-6)
+dogheight =winmetrics(17) /winmetrics(-5)
+dogCaption =`Batcon` 
+dogX=-1
+dogY=-1
+dogProcedure=`dogrun` 
+dogNumControls =0
+dogFont=`DEFAULT` 
+dogTextColor=`DEFAULT` 
+dogBackground=`DEFAULT,DEFAULT` 
+s_prevtype =""
+s_prevwidth =""
+s_prevheight =""
+i_x =0
+i_y =0
+i_order =0
+DirChange(s_BatconDir)
+s =strcat(s_batconpath, "settings.lst")
+if fileexist(s)
+s_list =file2list(s)
+else
+if @true
+i_count =arrinfo(a_alias, 2)
+s_aliaslist =""
+s_list =""
+i_max =i_count -1
+for i =0 to i_max
+s_aliaslist =strcat(s_aliaslist, @tab, a_alias[i, 0])
+s_list =strcat(s_list, @tab, a_alias[i, 1])
+endfor
+for i =0 to i_max
+s =a_alias[i, 0]
+if strlower(strleft(s, 4)) =="any2" then s_list =strcat(s_list, @tab, s)
+endfor
+s_aliaslist =strsub(s_aliaslist, 2, -1)
+s_list =strsub(s_list, 2, -1)
+else
+s_list =FileItemize("*2*.ini")
+s_list =strcat(s_list, @tab, fileitemize("*4*.ini")
+s_list =strreplace(s_list, ".INI", "")
+s_list =strreplace(s_list, ".ini", "")
+endif
+;s_list =itemsort(s_list, @tab)
+endif
+s_list =listunique(strlower(s_list), @true)
+varset("s_conversion", BatconGet("WhichConversion"))
+varset("s_plain", BatconGet("PlainTextRefinements"))
+varset("s_subfolders", batconget("IncludeSubfolders"))
+varset("s_verbose", BatconGet("VerboseMessages"))
+s_update =BatconGet("IfTargetFound")
+s_move =BatconGet("WhenSourceDone")
+s_source =BatconGet("SourceFolder")
+varset("s_donedir", BatconGet("DoneFolder"))
+s_target =BatconGet("TargetFolder")
+controlput("&Which conversion?", "", "", "", "", "itembox", "s_list", "%s_conversion%", "", "", "", "", "", "")
+controlput("", 110, 0, "", "", "checkbox", "s_plain", "&Plain text refinements", "", "", "", "", "", "")
+controlput("", s_prevx, 12, "", "", "checkbox", "s_subfolders", "&Include subfolders", "", "", "", "", "", "")
+controlput("", s_prevx, 24, "", "", "checkbox", "s_verbose", "&Verbose messages", "", "", "", "", "", "")
+controlput("&Source folder:", 88, "", (60 *4), 12, "editbox", "s_source", "%s_source%", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_move", "&Move source file when done", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_move", "&Erase source file when done", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_move", "&Keep source file when done", "", "", "", "", "", "")
+controlput("&Done folder:", 88, "", (60 *4), 12, "editbox", "s_donedir", "%s_source%", "", "", "", "", "", "")
+controlput("&Target folder:", 88, "", (60 *4), 12, "editbox", "s_target", "%s_source%", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_update", "&Update target file if found", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_update", "&Replace target file if found", "", "", "", "", "", "")
+controlput("", "", "", "", "", "radiobutton", "s_update", "&Leave target file if found", "", "", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Convert", "", "1", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Browse report", "", "", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Open folder", "", "", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Zap folder", "", "", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Help", "", "", "", "", "", "")
+controlput("", "", "", "", "", "pushbutton", "", "&Quit", "", "", "", "", "", "")
+if strcontains(params, "/auto")
+params =strreplacenc(o_func, params, "/auto", "")
+s_list =s_conversion
+dogbutton =18
+else
+dogbutton =Dialog("dog") 
+if dogbutton ==1 then goto cancel
+batconset("WhichConversion", itemextract(1, s_list, @tab))
+batconset("PlainTextRefinements", s_plain)
+varset("s_plain", s_plain)
+batconset("IncludeSubfolders", s_subfolders)
+varset("s_subfolders", s_subfolders)
+batconset("VerboseMessages", s_verbose)
+varset("s_verbose", s_verbose)
+batconset("IfTargetFound", s_update)
+batconset("WhenSourceDone", s_move)
+batconset("SourceFolder", s_source)
+batconset("DoneFolder", s_donedir)
+batconset("TargetFolder", s_target)
+endif
+s_sourcedir =s_source
+if !direxist(s_sourcedir) && !fileexist(s_sourcedir) then dirmake(s_sourcedir)
+if !direxist(s_donedir) && !fileexist(s_donedir) then dirmake(s_donedir)
+s_targetdir =s_target
+if !direxist(s_targetdir) && !fileexist(s_targetdir) then dirmake(s_targetdir)
+exclusive(s_verbose)
+s_conversionlist =s_list
+i_conversioncount =itemcount(s_conversionlist, @tab)
+s_list =itemextract(1, s_conversionlist, @tab)
+s_initfile =filefullname(strcat(s_list, ".ini"))
+
+switch dogbutton
+case 18
+I_condition =@false
+s_file =strcat("%s_BatconDir%\", s_list, ".ini")
+iniLoad(s_file)
+break
+case 27 ;new
+s_file =strcat("%s_BatconDir%\", s_list, ".ini")
+iniload(s_file)
+dogmodify(s_file)
+break
+case 28 ; edit
+s_list =fileroot(askline("", "Conversion (e.g., set2txt):", ""))
+s_file =strcat("%s_BatconDir%\", s_list, ".ini")
+filecopy("%s_BatconDir%\batcon.ini", s_file, 1)
+iniload(s_initfile)
+dogmodify(s_file)
+break
+case 21 ;help
+if @true
+runzoomwait(strcat(s_batconpath, "setup.exe"), "review")
+else
+message("Help", s_help)
+endif
+break
+case 22 ;quit
+break
+;case dogbutton
+case 1800
+I_condition =@false
+s_file =strcat("%s_BatconDir%\", s_list, ".ini")
+iniLoad(s_file)
+break
+endswitch
+endwhile
+
+i_convertcount =0
+i_failcount =0
+i_skipcount =0
+i_movecount =0
+i_deletecount =0
+i_keepcount =0
+i_updatecount =0
+i_replacecount =0
+i_leavecount =0
+for i_list =1 to i_conversioncount
+s_list =itemextract(i_list, s_conversionlist, @tab)
+dirchange(s_batcondir)
+s_newprograms =""
+i =strindex(s_list, '2', 0, @fwdscan)
+s_prevTargetExt =strsub(s_list, (i +1), -1)
+s_previnitfile =s_initfile
+s_initfile =filefullname(strcat(s_list, ".ini"))
+if !strequiv(s_initfile, s_previnitfile) then iniload(s_initfile)
+s_sourcedir =s_source
+s_targetdir =s_target
+s_prevsourcedir =s_sourcedir
+s_prevtargetdir =s_targetdir
+varset("s_prevlogfile", s_logfile)
+varset("s_prevreportfile", s_reportfile)
+;endif
+FileDelete(s_logfile)
+FileDelete(s_reportfile)
+s_report =""
+
+i_keystrokes =strequiv(s_conversionmethod, "Keystrokes")
+i_activex =strequiv(s_conversionmethod, "Activex")
+i_commandutil =strequiv(s_conversionmethod, "CommandUtil")
+i_namesource =strequiv(strleft(s_conversion, 5), "name4")
+i_anysource =strequiv(strleft(s_conversion, 4), "any2")
+i_websource =strequiv(strleft(s_conversion, 4), "web2")
+i_datasource =strequiv(strleft(s_conversion, 5), "data2")
+i_datatarget =strequiv(strright(s_conversion, 5), "2data")
+
+if !isdefined(s_sourceextlist) then varset("s_sourceextlist", s_sourceext)
+s_filespec =strcat("*.", strreplace(s_sourceextlist, '|', strcat(@tab, "*.")))
+if i_websource
+i_filecount =1
+s_log =""
+s_dataname =""
+s_sourcefile =""
+s_targetfile =""
+else
+if s_subfolders
+s_sourcelist =FileItemsub(s_Sourcedir, s_filespec)
+else
+s_sourcelist =fileitemdir(s_sourcedir, s_filespec)
+endif
+i_filecount =ItemCount(s_sourcelist, @tab)
+endif
+For i_file =1 to i_filecount
+if i_datasource || i_websource 
+s =strcat(s_sourcedir, "\data.", s_sourceext)
+else
+s =ItemExtract(i_file, s_sourcelist, @tab)
+endif
+s_dataname =FileRoot(s)
+s_SourceExt =FileExtension(s)
+if @true
+;if s_subfolders
+s_sourcedir =filedir(s)
+else
+s_sourcedir =s_prevsourcedir
+endif
+;s_targetdir =s_prevtargetdir
+s_targetdir =s_target
+s_sourcefile ="%s_sourceDir%\%s_dataname%.%s_SourceExt%"
+i_convert =@true
+while i_convert
+s_log =""
+s_report =""
+s_datawindow =""
+if i_datasource then s_targetfile =strcat(s_targetdir, "\data.", s_targetext)
+i_samefile =strequiv(s_sourceext, s_targetext)
+i_keystrokes =strequiv(s_conversionmethod, "Keystrokes")
+i_activex =strequiv(s_conversionmethod, "Activex")
+i_commandutil =strequiv(s_conversionmethod, "CommandUtil")
+if (i_datasource || i_websource) && i_activex then goto activex
+;s_prevTargetExt =s_TargetExt
+;s_TargetExt =inireadpvt("SETTINGS", "TargetExt", "", s_initfile)
+s_TargetExt =s_prevTargetExt
+if !i_namesource && !i_datasource && !i_datatarget then s_conversion =strcat(s_SourceExt, '2', s_TargetExt)
+s_alias =conversion2alias(a_alias, s_aliaslist, s_conversion)
+if !strempty(s_alias) 
+s =s_conversion
+varset("s_conversion", s_alias)
+varset("s_alias", s)
+endif
+s_previnitfile =s_initfile
+s_initfile ="%s_batcondir%\%s_conversion%.ini"
+if fileexist(s_initfile) 
+if s_initfile !=s_previnitfile 
+iniload(s_initfile)
+varset("s_logfile", s_prevlogfile)
+varset("s_reportfile", s_prevreportfile)
+endif
+else
+i_convert =@false
+If FileExist(s_SourceFile)
+s_report ="Skipped %s_dataname%.%s_SourceExt% since %s_conversion%.ini does not exist"
+i_skipcount =i_skipcount +1
+EndIf
+endif
+if !i_convert 
+If FileExist(s_SourceFile) Then boxline("Skipping %s_dataname%.%s_SourceExt%")
+break
+endif
+s_targetfile ="%s_TargetDir%\%s_dataname%.%s_TargetExt%"
+if strempty(s_datawindow) then s_datawindow =s_dataname
+if fileexist(s_targetfile)
+switch s_update
+break
+case 16 ;replace
+i_replacecount =i_replacecount +1
+break
+case 17 ;leave
+i_leavecount =i_leavecount +1
+i_convert =@false
+s_report ="Skipped %s_dataname%.%s_SourceExt% since target file already exists"
+i_skipcount =i_skipcount +1
+break
+case s_update ;update
+if filetimecode(s_targetfile) >= filetimecode(s_sourcefile) 
+i_convert =@false
+s_report ="Skipped %s_dataname%.%s_SourceExt% since target file is newer"
+i_skipcount =i_skipcount +1
+else
+i_updatecount =i_updatecount +1
+endif
+break
+endswitch
+if i_convert 
+if !i_namesource && !i_samefile then FileDelete(s_targetfile)
+else
+;boxline("Skipping %s_dataname%.%s_SourceExt%")
+break
+endif
+endif
+
+;BoxLine("Converting %s_dataname% from %s_SourceExt% to %s_TargetExt%")
+;boxline("Converting %s_dataname%.%s_SourceExt%")
+if direxist(s_programdir) then dirchange(s_programdir)
+if i_commandutil
+s_programdir =filenameshort(s_programdir)
+s_sourcefile =filenameshort(s_sourcefile)
+s_targetfile =strcat(filepath(s_targetfile), fileroot(s_sourcefile), '.', fileextension(s_targetfile))
+s_ConversionCode =inireadpvt("SETTINGS", "ConversionCode", "", s_initfile)
+s_ConversionCode =StrReplace(s_ConversionCode, "%%ProgramDir%%", s_programdir)
+s_ConversionCode =StrReplace(s_ConversionCode, "%%SourceFile%%", s_sourcefile)
+s_ConversionCode =StrReplace(s_ConversionCode, "%%BatconDir%%", s_batcondir)
+s_ConversionCode =StrReplace(s_ConversionCode, "%%Conversion%%", s_conversion)
+s_ConversionCode =StrReplace(s_ConversionCode, "%%TargetFile%%", s_targetfile)
+if strcontains(s_ConversionCode, ".bat ")
+s =environment(strupper("comspec"))
+else
+s =s_programlaunch
+endif
+runzoomwait(s, s_ConversionCode)
+appwinclose(s_conversion, "")
+appwinclose(s_programwindow, "")
+appwinclose("command", "")
+appwinclose("Finished", "")
+stabilize(1)
+else
+If !AppExist(s_programresident)
+if i_keystrokes then SmartCommand("Launch", s_programwindow, s_programdir, s_programlaunch, s_programresident)
+if !strcontains(s_newprograms, s_programwindow) then s_newprograms =strcat(s_newprograms, iif(s_newprograms =="", "", @tab), s_programwindow)
+endif
+if i_namesource && !strequiv(s_conversion, "name4txt") 
+s_conversion =strcat(fileextension(s_sourcefile), "2txt")
+iniload(strcat(s_batconpath, s_conversion, ".ini"))
+s_targetfile =filecreatetemp("")
+endif
+
+if strequiv(s_programwindow, "Microsoft Internet Explorer") && !isdefined(o_htm_app)
+o_htm_app =objectaccess("InternetExplorer.Application", @true)
+o_htm_app.visible =iif(i_debug, @true, @false)
+o_htm_app.silent =iif(i_debug, @false, @true)
+o_htm_cot =0
+endif
+if strequiv(s_programwindow, "Microsoft Excel") && !isdefined(o_xls_app)
+o_xls_app =objectaccess("Excel.Application", @true)
+o_xls_app.visible =iif(i_debug, @true, @false)
+o_xls_app.displayalerts =@false
+o_xls_app.screenupdating =@false
+o_xls_cot =o_xls_app.workbooks
+endif
+if strequiv(s_programwindow, "Microsoft Word") && !isdefined(o_doc_app)
+o_doc_app =objectaccess("word.application", @true)
+o_doc_app.visible =iif(i_debug, @true, @false)
+o_doc_app.displayalerts =@false
+o_doc_app.screenupdating =@false
+o_doc_cot =o_doc_app.documents
+endif
+if strequiv(s_programwindow, "Microsoft PowerPoint") && !isdefined(o_ppt_app)
+o_ppt_app =objectaccess("PowerPoint.Application", @true)
+;o_ppt_app.visible =@true
+o_ppt_cot =o_ppt_app.presentations
+endif
+EndIf
+
+:activex
+if i_activex
+s_matchlist =s_aliaslist
+i_conversion =match(s_conversion)
+switch i_conversion
+case match("any2lst")
+any2lst(o_func, o_exp, "", s_sourcefile, s_targetfile)
+break
+case match("any2zip")
+any2zip(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("chm2txt")
+chm2txt(o_func, o_exp, s_sourcefile, s_targetfile)
+break
+case match("data2lst")
+data2lst(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("data2txt")
+data2txt(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("data2zip")
+data2zip(s_sourcelist, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("hlp2rtf")
+hlp2rtf(s_batcondir, s_sourcefile, s_targetfile)
+break
+case match("hlp2txt")
+hlp2txt(o_doc_app, o_doc_cot, s_sourcefile, s_targetfile)
+break
+case match("htm2txt")
+htmstrip(o_func, o_exp, s_sourcefile, s_targetfile)
+break
+case match("lst2data")
+lst2data(s_sourcefile, s_targetdir)
+break
+case match("lst2txt")
+lst2txt(s_sourcefile, s_targetfile)
+break
+case match("lst2zip")
+lst2zip(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("name4txt")
+s_body =fileget(s_sourcefile, "")
+o_exp.ignorecase =@false
+o_exp.pattern =strcat('^', s_toc, "(\n|.)*?", s_sb)
+if o_exp.test(s_body)
+s_body =o_exp.replace(s_body, "")
+s_namefile =filecreatetemp("")
+fileput(s_namefile, s_body)
+s_targetfile =Name4txt(o_func, s_sourcefile, s_namefile, s_targetdir)
+drop(s_body)
+if fileexist(s_namefile) then filedelete(s_namefile)
+else
+s_targetfile =Name4txt(o_func, s_sourcefile, s_sourcefile, s_targetdir)
+endif
+break
+case match("pdf2asc")
+pdf2asc(s_programdir, s_programlaunch, s_conversioncode, s_sourcefile, s_targetfile)
+break
+case match("pdf2htm")
+pdf2htm(s_programdir, s_programlaunch, s_conversioncode, s_sourcefile, s_targetfile)
+break
+case match("Pdf2Ans")
+Pdf2Ans(s_batcondir, s_sourcefile, s_targetfile)
+break
+case match("pdf2txt")
+pdf2txt(s_batcondir, s_sourcefile, s_targetfile)
+break
+case match("pdf2doc")
+pdf2doc(s_batcondir, s_sourcefile, s_targetfile)
+break
+case match("pdf2rtf")
+pdf2rtf(s_batcondir, s_sourcefile, s_targetfile)
+break
+case match("web2data")
+web2data(o_func, o_exp, s_targetdir)
+break
+case match("web2lst")
+web2lst(o_func, o_exp, s_targetdir)
+break
+case match("zip2data")
+zip2data(s_sourcefile, s_targetdir, s_subfolders, s_move, s_update)
+break
+case match("zip2lst")
+zip2lst(s_sourcefile, s_targetfile, s_subfolders, s_move, s_update)
+break
+case match("sort4any")
+s_targetfile =sort4any(o_func, s_sourcefile, s_sourcefile, s_targetdir)
+break
+case match("txt2txt")
+break
+case i_conversion
+i =strindex(s_conversion, '2', 1, @fwdscan)
+s =strsub(s_conversion, 1, (i-1))
+cotempty(o_%s%_app, o_%s%_cot, s_verbose)
+%s_conversion%(o_%s%_app, o_%s%_cot, s_sourcefile, s_targetfile)
+break
+endswitch
+
+if i_namesource && !strequiv(s_conversion, "name4txt") 
+s_tempfile =strcat(filepathroot(s_targetfile), '.', fileextension(s_sourcefile))
+filerename(s_targetfile, s_tempfile)
+s_sourcedir =s_source
+s_targetdir =s_target
+s_targetfile =name4txt(o_func, s_sourcefile, s_tempfile, s_targetdir)
+if fileexist(s_tempfile) then filedelete(s_tempfile)
+endif
+endif
+
+if s_plain && listcontains(strcat("asc", @tab, "htm", @tab, "txt"), s_TargetExt) && fileexist(s_targetfile)
+SayString("Refining text")
+PlainText(o_func, o_exp, s_targetfile)
+endif
+if i_keystrokes && !strempty(s_programwindow)
+i_return =SmartCommand("Activate", s_programwindow, "", "", s_programresident)
+if !i_return
+s_log ="Failed to activate %s_programwindow%"
+;appendline(s_logfile, s_log, i_debug)
+appclose(s_programwindow, s_programresident)
+break
+endif
+endif
+if i_keystrokes && !strempty(s_presourcekeys) then SendKeys(s_PreSourceKeys)
+if i_keystrokes
+SmartCommand("Wait", s_sourcewindow, "", "", "")
+;clipput(s_sourcefile)
+endif
+if i_keystrokes && !strempty(s_sourcefile) then SendKeys("{Home}+{End}{Del}^v")
+if i_keystrokes && !strempty(s_postsourcekeys) then SendKeys(s_PostSourceKeys)
+if i_keystrokes
+SmartCommand("Lose", s_sourcewindow, "", "", "")
+endif
+if i_keystrokes
+i_return =SmartCommand("Activate", s_programwindow, s_datawindow, "", s_programresident)
+if !i_return
+s_log ="Failed to open %s_sourcefile%.%s_SourceExt%"
+;appendline(s_logfile, s_log, i_debug)
+appclose(s_programwindow, s_programresident)
+break
+endif
+endif
+If i_keystrokes && !strempty(s_editkeys)
+stabilize(2)
+SendKeys(s_editkeys)
+stabilize(8)
+EndIf
+if i_keystrokes && !strempty(s_pretargetkeys) then SendKeys(s_PreTargetKeys)
+if i_keystrokes
+SmartCommand("Wait", s_targetwindow, "", "", "")
+endif
+;clipput(strcat('"', s_targetfile, '"'))
+if i_keystrokes && !strempty(s_targetfile) then SendKeys("{Home}+{End}{Del}^v")
+if i_keystrokes && !strempty(s_posttargetkeys) then SendKeys(s_PostTargetKeys)
+if i_keystrokes
+SmartCommand("Lose", s_targetwindow, "", "", "")
+endif
+if !i_namesource && !i_datatarget then SmartCommand("Save", s_targetfile, "", "", "")
+if i_keystrokes
+SmartCommand("Activate", s_programwindow, s_datawindow, "", s_programresident)
+If i_keystrokes && strequiv(s_closeprogram, "Yes") then SmartCommand("Terminate", s_programwindow, s_programresident, "", "")
+If i_keystrokes && strequiv(s_closeprogram, "No") then SmartCommand("Close", s_programwindow, s_datawindow, s_targetfile, "")
+endif
+if !i_namesource && fileexist(s_targetfile) && !strequiv(s_dataname, fileroot(s_targetfile)) ;short file name was used for target
+s =strcat(filepath(s_targetfile), s_dataname, '.', fileextension(s_targetfile))
+if fileexist(s) then filedelete(s)
+filerename(s_targetfile, s)
+s_targetfile =s
+endif
+
+if fileexist(s_targetfile) && (filesize(s_targetfile) ==0) then filedelete(s_targetfile)
+if (i_datatarget || i_samefile) || (fileexist(s_targetfile) && (s_log !="Failed to open %s_sourcefile%.%s_SourceExt%"))
+s_report ="Converted %s_dataname% from %s_SourceExt% to %s_TargetExt%"
+i_convertcount =i_convertcount +1
+else
+s_report ="Failed to convert %s_dataname% from %s_SourceExt% to %s_TargetExt%"
+i_failcount =i_failcount +1
+if i_activex && listcontains(strcat("doc", @tab, "htm", @tab, "ppt", @tab, "xls"), s_sourceext)
+i =strindex(s_conversion, '2', 1, @fwdscan)
+s =strsub(s_conversion, 1, (i-1))
+cotempty(o_%s%_app, o_%s%_cot, s_verbose)
+o_%s%_app.quit()
+objectclose(o_%s%_app)
+else
+appclose(s_programwindow, s_programresident)
+endif
+endif
+;appendline(s_reportfile, s_report, i_debug)
+
+switch s_move
+case 9 ;erase
+if strsub(s_report, 1, 9) =="Converted" 
+if i_datasource
+filedelete(s_sourcelist)
+i_deletecount =i_deletecount +itemcount(s_sourcelist, @tab)
+else
+filedelete(s_sourcefile)
+i_deletecount =i_deletecount +1
+endif
+endif
+break
+case 10 ;keep
+i_keepcount =i_keepcount +1
+break
+case s_move ;move
+if strsub(s_report, 1, 9) =="Converted" 
+s ="%s_donedir%\%s_dataname%.%s_SourceExt%"
+if i_datasource 
+filemove(s_sourcelist, s_donedir, @false)
+i_movecount =i_movecount +itemcount(s_sourcelist, @tab)
+else
+if !strequiv(s_sourcefile, s) && !i_namesource && !i_websource
+filemove(s_sourcefile, s, @false)
+i_movecount =i_movecount +1
+endif
+endif
+endif
+break
+endswitch
+
+if i_namesource || i_datatarget || s_TargetExt ==s_prevTargetExt
+i_convert =@false
+else
+s_sourcedir =s_targetdir
+s_sourcefile =s_targetfile
+s_SourceExt =s_TargetExt
+endif
+endwhile
+if i_datasource || i_websource then break
+endfor
+ExitBoxLine()
+
+for i =1 to itemcount(s_newprograms, @tab)
+s =itemextract(i, s_newprograms, @tab)
+if winexist("~%s%") then winclose("~%s%")
+if strequiv(s, "Microsoft Word")
+objectclose(o_doc_cot)
+;o_doc_app.quit()
+objectclose(o_doc_app)
+drop(o_doc_cot, o_doc_app)
+endif
+if strequiv(s, "Microsoft Internet Explorer")
+If IsDefined(o_htm_app)
+if o_htm_app 
+ErrorMode(@Off)
+o_htm_app.quit()
+objectclose(o_htm_app)
+drop(o_htm_cot, o_htm_app)
+ErrorMode(@cancel)
+EndIf
+EndIf
+endif
+if strequiv(s, "Microsoft Excel")
+objectclose(o_xls_cot)
+o_xls_app.quit()
+objectclose(o_xls_app)
+drop(o_xls_cot, o_xls_app)
+endif
+if strequiv(s, "Microsoft PowerPoint")
+objectclose(o_ppt_cot)
+o_ppt_app.quit()
+objectclose(o_ppt_app)
+drop(o_ppt_cot, o_ppt_app)
+endif
+next
+next
+if direxist(s_startdir) then dirchange(s_startdir)
+s ="Batch conversion is done!"
+s =strcat(s, @crlf, "Converted %i_convertcount% file", iif(i_convertcount ==1, "", 's'))
+if i_failcount >0 then s =strcat(s, @crlf, "Failed to convert %i_failcount% file", iif(i_failcount ==1, "", 's'))
+if i_skipcount >0 then s =strcat(s, @crlf, "Skipped %i_skipcount% file", iif(i_skipcount ==1, "", 's'))
+if i_movecount >0 then s =strcat(s, @crlf, "Moved %i_movecount% source file", iif(i_movecount ==1, "", 's'))
+if i_deletecount >0 then s =strcat(s, @crlf, "Deleted %i_deletecount% source file", iif(i_deletecount ==1, "", 's'))
+if i_keepcount >0 then s =strcat(s, @crlf, "Kept %i_keepcount% source file", iif(i_keepcount ==1, "", 's'))
+if i_updatecount >0 then s =strcat(s, @crlf, "Updated %i_updatecount% target file", iif(i_updatecount ==1, "", 's'))
+if i_replacecount >0 then s =strcat(s, @crlf, "Replaced %i_replacecount% target file", iif(i_replacecount ==1, "", 's'))
+if i_leavecount >0 then s =strcat(s, @crlf, "Left %i_leavecount% target file", iif(i_leavecount ==1, "", 's'))
+;appendline(s_reportfile, s, i_debug)
+custompause("", s, "&Restart", "&Quit")
+;if i_convertcount >0 then runzoom(strcat(dirwindows(0), "explorer.exe"), s_targetdir)
+goto main
+return
+
+:cancel
+display(1, "Quitting Batcon", "")
+errormode(@off)
+if isdefined(o_htm_app) then o_htm_app.quit()
+if isdefined(o_doc_app) then o_doc_app.quit()
+if isdefined(o_func) then objectclose(o_func)
+if isdefined(o_exp) then objectclose(o_exp)
+if isdefined(o_xls_app) then o_xls_app.quit()
+if isdefined(s_dirtemp) then dirdelete(s_dirtemp)
+if isdefined(o_ppt_app) then o_ppt_app.quit()
+errormode(@cancel)
+ goto exit
+
+:Exit
+ exit
+

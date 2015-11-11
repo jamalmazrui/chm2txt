@@ -1,0 +1,38 @@
+[Main]
+Type=1
+Src=chm2txt.wbt
+Targ=c:\CHM2TXT\chm2txt.exe
+Icon=
+CmpVersion=4
+[Options]
+TechWebPage=http:/NonvisualDevelopment.org
+UACManifestSelection=AsInvoker
+UACManifestUI=false
+CodeSign=0
+CodeSignDetails=~~
+RunHidden=0
+LargeExtractDest=0
+PreventAutoExtract=0
+[Version Info]
+Comments=
+CompanyName=
+FileDescription=chm2txt
+FileVersion=1.1
+InternalName=chm2txt.exe
+LegalCopyright=Copyright 2005 - 2009 by Jamal Mazrui
+LegalTrademarks=
+OriginalFilename=chm2txt.exe
+ProductName=chm2txt
+ProductVersion=1.1
+[Other Files]
+Count=7
+File001=BatCon.ini
+File002=chm2txt.pro
+File003=toc.pro
+File004=txt.pro
+File005=7z.exe
+File006=7z.dll
+File007=7z.sfx
+[Extenders]
+Count=1
+File001=xGlob34i.dll
